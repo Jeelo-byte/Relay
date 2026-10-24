@@ -1,0 +1,501 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		087C61BD8A2FF20699CD4C80 /* AgreementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */; };
+		36106F372C8FED63A9C7C24A /* MatrixConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */; };
+		364E7B0787A365B7F2AF79AB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D62FC39932391D1E796A62 /* SettingsView.swift */; };
+		4900F6EF78F8F5B2F3228ECA /* RelayKit in Frameworks */ = {isa = PBXBuildFile; productRef = BBCA5FD19EB45071473A3C7D /* RelayKit */; };
+		7404E148BA6ABB6072D8B1AC /* ConnectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C957A1DFC0B6415DA60C7B5D /* ConnectionsView.swift */; };
+		7698D79B7E1C97FD2FA58A29 /* RelayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A3B862AFB81916F41A0F928 /* RelayApp.swift */; };
+		963C9D4CC221F73DC5D73357 /* AgreementDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */; };
+		9A4BB634D3E171AD7A825B65 /* RelayUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E7A997B5D969E134813EF8 /* RelayUITests.swift */; };
+		C77823F2941F993CEC75CC9C /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E54D75C178A04FFA53DAA9 /* InboxView.swift */; };
+		D23A50F30C6DED207B3B9FE7 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635DE6AC84943DDDCC29E1AD /* RootView.swift */; };
+		E229B5737F21A1D87C0073EC /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 563A7CF12A1A13FCB46097F8 /* Onboarding.swift */; };
+		E6ABB0D4EA021B035E5C127C /* AgreementEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3346FDA187AAF769417D00F5 /* AgreementEditor.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3854DACD222F441A780A22AC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 00400E7BA46B4893DB3DAE46 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 00CC2921912F47FC3C6615F8;
+			remoteInfo = Relay;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		12E54D75C178A04FFA53DAA9 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
+		3346FDA187AAF769417D00F5 /* AgreementEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgreementEditor.swift; sourceTree = "<group>"; };
+		563A7CF12A1A13FCB46097F8 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
+		5A3B862AFB81916F41A0F928 /* RelayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayApp.swift; sourceTree = "<group>"; };
+		635DE6AC84943DDDCC29E1AD /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		78E3AAA9D17440E2BC308FC0 /* RelayUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = RelayUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatrixConnectView.swift; sourceTree = "<group>"; };
+		88EBB50D6387C066EBEE9162 /* RelayKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RelayKit; path = apple/RelayKit; sourceTree = SOURCE_ROOT; };
+		A3D62FC39932391D1E796A62 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		B2640FB004F58617990C7498 /* Relay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Relay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgreementDetailView.swift; sourceTree = "<group>"; };
+		C957A1DFC0B6415DA60C7B5D /* ConnectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsView.swift; sourceTree = "<group>"; };
+		F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgreementListView.swift; sourceTree = "<group>"; };
+		F8E7A997B5D969E134813EF8 /* RelayUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayUITests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		EF50208E6B06E9FF6A31ED33 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4900F6EF78F8F5B2F3228ECA /* RelayKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0067E777BFD7D4ED74433801 /* RelayApp */ = {
+			isa = PBXGroup;
+			children = (
+				BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */,
+				3346FDA187AAF769417D00F5 /* AgreementEditor.swift */,
+				F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */,
+				C957A1DFC0B6415DA60C7B5D /* ConnectionsView.swift */,
+				12E54D75C178A04FFA53DAA9 /* InboxView.swift */,
+				8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */,
+				563A7CF12A1A13FCB46097F8 /* Onboarding.swift */,
+				5A3B862AFB81916F41A0F928 /* RelayApp.swift */,
+				635DE6AC84943DDDCC29E1AD /* RootView.swift */,
+				A3D62FC39932391D1E796A62 /* SettingsView.swift */,
+			);
+			name = RelayApp;
+			path = apple/RelayApp;
+			sourceTree = "<group>";
+		};
+		8108792C7BDAA099F962E116 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B2640FB004F58617990C7498 /* Relay.app */,
+				78E3AAA9D17440E2BC308FC0 /* RelayUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		96D02309876A3C029DF41C69 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				88EBB50D6387C066EBEE9162 /* RelayKit */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		C52F87F100EAF9D7C65F5494 /* RelayUITests */ = {
+			isa = PBXGroup;
+			children = (
+				F8E7A997B5D969E134813EF8 /* RelayUITests.swift */,
+			);
+			name = RelayUITests;
+			path = apple/RelayUITests;
+			sourceTree = "<group>";
+		};
+		DC658091D1A7F7FB428FB8C2 = {
+			isa = PBXGroup;
+			children = (
+				96D02309876A3C029DF41C69 /* Packages */,
+				0067E777BFD7D4ED74433801 /* RelayApp */,
+				C52F87F100EAF9D7C65F5494 /* RelayUITests */,
+				8108792C7BDAA099F962E116 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		00CC2921912F47FC3C6615F8 /* Relay */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 123F6CBD015F52CA68038BCE /* Build configuration list for PBXNativeTarget "Relay" */;
+			buildPhases = (
+				EC79C452CC5E84280E112945 /* Sources */,
+				EF50208E6B06E9FF6A31ED33 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Relay;
+			packageProductDependencies = (
+				BBCA5FD19EB45071473A3C7D /* RelayKit */,
+			);
+			productName = Relay;
+			productReference = B2640FB004F58617990C7498 /* Relay.app */;
+			productType = "com.apple.product-type.application";
+		};
+		44948475B68E1616C5A4C8E7 /* RelayUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BEF0E16E0C44253F0EED586F /* Build configuration list for PBXNativeTarget "RelayUITests" */;
+			buildPhases = (
+				18859D49C3B139ACBF876672 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				78DC4C07B612F662DD462B2A /* PBXTargetDependency */,
+			);
+			name = RelayUITests;
+			packageProductDependencies = (
+			);
+			productName = RelayUITests;
+			productReference = 78E3AAA9D17440E2BC308FC0 /* RelayUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		00400E7BA46B4893DB3DAE46 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					00CC2921912F47FC3C6615F8 = {
+						ProvisioningStyle = Automatic;
+					};
+					44948475B68E1616C5A4C8E7 = {
+						ProvisioningStyle = Automatic;
+						TestTargetID = 00CC2921912F47FC3C6615F8;
+					};
+				};
+			};
+			buildConfigurationList = CAE7F6E0ECA548A1858A3109 /* Build configuration list for PBXProject "Relay" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = DC658091D1A7F7FB428FB8C2;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				208E0078756A1B705D114901 /* XCLocalSwiftPackageReference "apple/RelayKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8108792C7BDAA099F962E116 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				00CC2921912F47FC3C6615F8 /* Relay */,
+				44948475B68E1616C5A4C8E7 /* RelayUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		18859D49C3B139ACBF876672 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9A4BB634D3E171AD7A825B65 /* RelayUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EC79C452CC5E84280E112945 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				963C9D4CC221F73DC5D73357 /* AgreementDetailView.swift in Sources */,
+				E6ABB0D4EA021B035E5C127C /* AgreementEditor.swift in Sources */,
+				087C61BD8A2FF20699CD4C80 /* AgreementListView.swift in Sources */,
+				7404E148BA6ABB6072D8B1AC /* ConnectionsView.swift in Sources */,
+				C77823F2941F993CEC75CC9C /* InboxView.swift in Sources */,
+				36106F372C8FED63A9C7C24A /* MatrixConnectView.swift in Sources */,
+				E229B5737F21A1D87C0073EC /* Onboarding.swift in Sources */,
+				7698D79B7E1C97FD2FA58A29 /* RelayApp.swift in Sources */,
+				D23A50F30C6DED207B3B9FE7 /* RootView.swift in Sources */,
+				364E7B0787A365B7F2AF79AB /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		78DC4C07B612F662DD462B2A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 00CC2921912F47FC3C6615F8 /* Relay */;
+			targetProxy = 3854DACD222F441A780A22AC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		2081E5984332363D157E9BAF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		71F4EFF4B9550541A79E6FCC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		7CB4F2CB7DAEE9752ED1E360 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Relay;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Relay does not use the camera.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your private Relay agreements.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.relay.agreements;
+				PRODUCT_NAME = Relay;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9BE9F6E08E841A1770F018C0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.relay.agreements.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Relay;
+			};
+			name = Debug;
+		};
+		F3D9B9C587F1507CA874D0DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Relay;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Relay does not use the camera.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your private Relay agreements.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.relay.agreements;
+				PRODUCT_NAME = Relay;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F756963D80E62001B08E380D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.relay.agreements.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Relay;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		123F6CBD015F52CA68038BCE /* Build configuration list for PBXNativeTarget "Relay" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7CB4F2CB7DAEE9752ED1E360 /* Debug */,
+				F3D9B9C587F1507CA874D0DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BEF0E16E0C44253F0EED586F /* Build configuration list for PBXNativeTarget "RelayUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9BE9F6E08E841A1770F018C0 /* Debug */,
+				F756963D80E62001B08E380D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CAE7F6E0ECA548A1858A3109 /* Build configuration list for PBXProject "Relay" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2081E5984332363D157E9BAF /* Debug */,
+				71F4EFF4B9550541A79E6FCC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		208E0078756A1B705D114901 /* XCLocalSwiftPackageReference "apple/RelayKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = apple/RelayKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BBCA5FD19EB45071473A3C7D /* RelayKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RelayKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 00400E7BA46B4893DB3DAE46 /* Project object */;
+}

@@ -81,16 +81,18 @@ var RelayNormalize = (() => {
     base.setUTCDate(base.getUTCDate() + delta);
     return { type: "date", date: base.toISOString().slice(0, 10), tz_assumed: tz, raw_text: text, ambiguous, anchor_ts: anchor };
   }
-  function validateExtraction(result, messages, parties) {
+  function validateExtraction(result, messages, parties, messageParties = {}) {
     const errors = [];
     if (!result || !Array.isArray(result.agreements) || result.agreements.length > 5) return ["schema:agreements"];
     result.agreements.forEach((a, i) => {
       if (!["create", "update", "complete", "cancel"].includes(a.op) || !["payment", "task", "meeting", "item", "other"].includes(a.kind) || !["offered", "agreed"].includes(a.lifecycle) || typeof a.title !== "string" || !a.title.length || a.title.length > 80 || typeof a.confidence !== "number" || a.confidence < 0 || a.confidence > 1) errors.push(`schema:agreements[${i}]`);
       if (!Array.isArray(a.evidence) || !a.evidence.length || a.evidence.length > 10) errors.push("schema:evidence");
       else a.evidence.forEach((e) => {
+        if (!Array.isArray(e.supports) || e.supports.some((s) => typeof s !== "string")) errors.push("schema:evidence.supports");
         if (!messages[e.m]) errors.push("unknown_message");
         else if (typeof e.quote !== "string" || e.quote.length > 280 || !quoteValid(e.quote, messages[e.m])) errors.push("quote_not_found");
       });
+      if (a.lifecycle === "agreed" && Object.keys(messageParties).length && new Set((a.evidence || []).map((e) => messageParties[e.m]).filter(Boolean)).size < 2) errors.push("unsupported_lifecycle_acceptance:include both parties and acceptance evidence");
       if (!Array.isArray(a.obligations) || !a.obligations.length || a.obligations.length > 5) errors.push("schema:obligations");
       else a.obligations.forEach((o) => {
         if (!parties.includes(o.obligor) || !parties.includes(o.obligee)) errors.push("unknown_party");

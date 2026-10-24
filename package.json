@@ -1,1 +1,27 @@
-{"name":"relay-workspace","private":true,"type":"module","scripts":{"dev":"next dev apps/web --hostname 0.0.0.0","build":"next build apps/web","test":"node --test packages/normalize/normalize.test.mjs backend/api.test.mjs","normalize":"esbuild packages/normalize/index.ts --bundle --format=iife --global-name=RelayNormalize --target=es2020 --outfile=apple/RelayKit/Sources/RelayKit/Resources/normalize.js"},"dependencies":{"@neondatabase/serverless":"^1.0.2","next":"^16.0.0","react":"^19.2.0","react-dom":"^19.2.0","libsodium-wrappers-sumo":"^0.7.15","zxcvbn":"^4.4.2"},"devDependencies":{"esbuild":"^0.25.0","typescript":"^5.9.0","@types/node":"^24.0.0","@types/react":"^19.2.0","@types/react-dom":"^19.2.0"}}
+{
+  "name": "relay-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev apps/web --hostname 0.0.0.0",
+    "build": "next build apps/web",
+    "test": "node --test packages/normalize/normalize.test.mjs backend/api.test.mjs",
+    "normalize": "esbuild packages/normalize/index.ts --bundle --format=iife --global-name=RelayNormalize --target=es2020 --outfile=apple/RelayKit/Sources/RelayKit/Resources/normalize.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "libsodium-wrappers-sumo": "0.7.15",
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zxcvbn": "^4.4.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0"
+  }
+}

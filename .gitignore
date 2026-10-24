@@ -9,3 +9,8 @@ xcuserdata/
 .DS_Store
 artifacts/*.app/
 artifacts/*.log
+.swiftpm/
+artifacts/*.png
+artifacts/*.xcresult/
+artifacts/
+infra/matrix/private/
