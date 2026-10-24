@@ -1,0 +1,24 @@
+{
+  "originHash" : "ed04138e24c7ee283aaf1c5a6912f241c778e00eeec1cd0880d479be6f18fe7a",
+  "pins" : [
+    {
+      "identity" : "grdb.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/groue/GRDB.swift.git",
+      "state" : {
+        "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115",
+        "version" : "7.10.0"
+      }
+    },
+    {
+      "identity" : "swift-sodium",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jedisct1/swift-sodium.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "cfd195c76882aa9b997560ca7cb95d72fbf5db00"
+      }
+    }
+  ],
+  "version" : 3
+}

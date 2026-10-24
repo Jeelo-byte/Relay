@@ -1,0 +1,11 @@
+.build/
+DerivedData/
+node_modules/
+.next/
+.env
+.env.local
+*.xcuserstate
+xcuserdata/
+.DS_Store
+artifacts/*.app/
+artifacts/*.log
