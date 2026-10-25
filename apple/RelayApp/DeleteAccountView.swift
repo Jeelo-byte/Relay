@@ -9,8 +9,8 @@ struct DeleteAccountView: View {
   @State private var busy = false
   @State private var issue: String?
   var body: some View {
-    Form {
-      Section("Permanently Delete Account") {
+    SettingsPage(title: "Delete Account", subtitle: "Review what will be removed before continuing.", symbol: "trash") {
+      SettingsCard("Permanently Delete Account") {
         Text("This deletes your account, encrypted synced records, recovery wraps, and device sessions from Relay’s server. It cannot be undone. Your original messages remain in their source apps and on your message server.")
         Text("Other devices may retain offline copies until they reconnect. Export anything you need before continuing.").font(.caption).foregroundStyle(RelayTheme.muted)
         TextField("Type Your Account Handle", text: $handle).autocorrectionDisabled()
@@ -19,7 +19,7 @@ struct DeleteAccountView: View {
         Button(busy ? "Deleting…" : "Delete Account", role: .destructive) { confirmation = true }
           .disabled(busy || store.session == nil || handle != store.session?.handle || passphrase.isEmpty)
       }
-    }.formStyle(.grouped).navigationTitle("Delete Account").disabled(busy)
+    }.disabled(busy)
       .confirmationDialog("Permanently Delete \(handle)?", isPresented: $confirmation, titleVisibility: .visible) {
         Button("Permanently Delete Account", role: .destructive) { Task { await remove() } }
         Button("Keep My Account", role: .cancel) {}

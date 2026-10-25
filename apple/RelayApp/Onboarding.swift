@@ -71,14 +71,14 @@ struct AccountView: View {
             } catch { message = error.localizedDescription }
           }
         } else {
-          Form {
-            Section {
+          SettingsPage(title: "Your Relay Account", subtitle: "Your private account, encrypted on this device.", symbol: "person.crop.circle") {
+            SettingsCard {
               Picker("Account", selection: $create) {
                 Text("Unlock Account").tag(false)
                 Text("Create Account").tag(true)
               }.pickerStyle(.segmented)
             }
-            Section("Your Private Account") {
+            SettingsCard("Your Private Account") {
               TextField("Handle", text: $handle).textContentType(.username).autocorrectionDisabled()
               SecureField("Passphrase", text: $passphrase).textContentType(
                 create ? .newPassword : .password)
@@ -89,19 +89,19 @@ struct AccountView: View {
                 ).foregroundStyle(RelayTheme.muted)
               }
             }
-            Section("Sync Server") {
+            SettingsCard("Sync Server") {
               TextField("HTTPS Server Address", text: $server).autocorrectionDisabled()
               Text(
                 "For this local demo, use http://localhost:3000 on the Mac or simulator. Physical devices need an HTTPS address."
               ).font(.caption).foregroundStyle(RelayTheme.muted)
             }
             if let message {
-              Section {
+              SettingsCard {
                 Label(message, systemImage: "exclamationmark.circle").foregroundStyle(
                   RelayTheme.danger)
               }
             }
-            Section {
+            SettingsCard {
               Button(action: submit) {
                 HStack {
                   if busy { ProgressView().controlSize(.small) }
@@ -116,16 +116,16 @@ struct AccountView: View {
                 .font(.caption).foregroundStyle(RelayTheme.muted)
             }
             if create {
-              Section {
+              SettingsCard {
                 Text(
                   "If you lose your passphrase, all your devices, and your recovery code, nobody — including us — can recover your agreements."
                 ).font(.caption).foregroundStyle(RelayTheme.warning)
               }
             }
             if !create {
-              Section { Button("Use Recovery Code") { recover = true } }
+              SettingsCard { Button("Use Recovery Code") { recover = true } }
             }
-          }.formStyle(.grouped)
+          }
         }
       }.navigationTitle(recovery == nil ? "Your Relay Account" : "Recovery Code").toolbar {
         ToolbarItem(placement: .cancellationAction) {

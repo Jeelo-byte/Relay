@@ -22,21 +22,21 @@ struct AccountRecoveryView: View {
             catch { issue = error.localizedDescription }
           }
         } else {
-          Form {
-            Section("Recover Your Relay") {
+          SettingsPage(title: "Recover Account", subtitle: "Restore access using your recovery code.", symbol: "key") {
+            SettingsCard("Recover Your Relay") {
               TextField("Handle", text: $handle).autocorrectionDisabled()
               SecureField("Recovery Code", text: $code).autocorrectionDisabled()
               SecureField("New Passphrase", text: $replacement).textContentType(.newPassword)
               SecureField("Confirm New Passphrase", text: $confirm).textContentType(.newPassword)
               TextField("HTTPS Server Address", text: $server).autocorrectionDisabled()
             }
-            Section {
+            SettingsCard {
               Text("Recovery replaces your old recovery code and signs out every existing device. Save the new code on the next screen. Your encrypted agreements keep the same data key.").font(.subheadline).foregroundStyle(RelayTheme.muted)
               if let issue { Text(issue).foregroundStyle(RelayTheme.danger) }
               Button(busy ? "Recovering…" : "Recover Account") { Task { await recover() } }
                 .disabled(busy || !RecoveryCode.valid(code) || replacement.count < 12 || replacement != confirm)
             }
-          }.formStyle(.grouped)
+          }
         }
       }.navigationTitle(nextCode == nil ? "Recover Account" : "New Recovery Code")
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy || nextCode != nil) } }

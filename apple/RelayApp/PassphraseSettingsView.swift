@@ -10,19 +10,19 @@ struct PassphraseSettingsView: View {
   @State private var busy = false
   @State private var issue: String?
   var body: some View {
-    Form {
-      Section("Change Passphrase") {
+    SettingsPage(title: "Passphrase", subtitle: "Keep your account secure with a passphrase only you know.", symbol: "key") {
+      SettingsCard("Change Passphrase") {
         SecureField("Current Passphrase", text: $current).textContentType(.password)
         SecureField("New Passphrase", text: $replacement).textContentType(.newPassword)
         SecureField("Confirm New Passphrase", text: $confirmation).textContentType(.newPassword)
         Text("Use at least 12 characters with several unrelated words. Your encrypted agreements and recovery code stay accessible. Other sessions must sign in again.").font(.caption).foregroundStyle(RelayTheme.muted)
       }
-      if let issue { Section { Text(issue).foregroundStyle(RelayTheme.danger) } }
-      Section {
+      if let issue { SettingsCard { Text(issue).foregroundStyle(RelayTheme.danger) } }
+      SettingsCard {
         Button(busy ? "Updating…" : "Change Passphrase") { Task { await update() } }
           .disabled(busy || current.isEmpty || replacement.count < 12 || replacement != confirmation || store.session == nil)
       }
-    }.formStyle(.grouped).navigationTitle("Passphrase").disabled(busy)
+    }.disabled(busy)
       .onDisappear { current = ""; replacement = ""; confirmation = "" }
   }
   private func update() async {
