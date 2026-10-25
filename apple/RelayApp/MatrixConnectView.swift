@@ -10,6 +10,13 @@ struct MatrixConnectView: View {
   @State private var busy = false
   @State private var message: String?
   var body: some View {
+    #if os(macOS)
+    desktopSetup.onAppear { restoreSession() }
+    #else
+    formBody
+    #endif
+  }
+  var formBody: some View {
     NavigationStack {
       Form {
         Section("Your Message Server") {
@@ -74,6 +81,64 @@ struct MatrixConnectView: View {
     #if os(macOS)
       .frame(minWidth: 520, idealWidth: 600, minHeight: 600)
     #endif
+  }
+  #if os(macOS)
+  private var desktopSetup: some View {
+    MacSetupShell(title: "Your conversations. Your choice.",
+      subtitle: "Connect an app, then choose what Relay can include.", symbol: "bubble.left.and.bubble.right") {
+      HStack(alignment: .top, spacing: 22) {
+        RelayPanel { VStack(alignment: .leading, spacing: 18) { ConnectionsView() } }.frame(width: 270)
+        VStack(alignment: .leading, spacing: 20) {
+          RelayPanel {
+            VStack(alignment: .leading, spacing: 14) {
+              HStack {
+                Text("Selected conversations").font(.system(size: 19, weight: .bold))
+                Spacer()
+                Text("\(store.rooms.filter(\.opted_in).count) included").font(.caption).foregroundStyle(RelayTheme.muted)
+              }
+              Text("Turn on the chats you want Relay to read. You can pause them here at any time.").foregroundStyle(RelayTheme.muted)
+              ForEach(store.rooms.filter { !$0.id.hasPrefix("imessage:") }) { room in
+                Toggle(isOn: Binding(get: { store.rooms.first { $0.id == room.id }?.opted_in ?? false }, set: { store.setOptIn(room.id, $0) })) {
+                  VStack(alignment: .leading, spacing: 4) {
+                    Text(room.name).font(.system(size: 14, weight: .medium))
+                    Text(room.network.label).font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
+                  }
+                }.toggleStyle(.switch).accessibilityLabel(room.name + ", " + room.network.label).padding(.vertical, 5)
+                Divider().overlay(RelayTheme.line)
+              }
+              if store.rooms.isEmpty { Text("Your chats will appear after you connect an app.").foregroundStyle(RelayTheme.muted) }
+              Button("Sync Chosen Chats") { Task { await store.syncMatrix() } }.buttonStyle(.borderedProminent).disabled(store.isDemo || busy)
+            }
+          }
+          RelayPanel {
+            VStack(alignment: .leading, spacing: 12) {
+              Label("WhatsApp", systemImage: "phone.bubble").font(.headline)
+              Toggle("Include all WhatsApp chats", isOn: Binding(get: { store.includeAllWhatsApp }, set: { store.setIncludeAllWhatsApp($0) })).toggleStyle(.switch)
+              Text("Also include new WhatsApp conversations as the bridge discovers them. Leave this off to choose chats individually.").font(.caption).foregroundStyle(RelayTheme.muted)
+            }
+          }
+          RelayPanel {
+            DisclosureGroup("Message server · " + store.matrixStatus) {
+              VStack(alignment: .leading, spacing: 12) {
+                TextField("Server address", text: $server).textFieldStyle(.roundedBorder)
+                TextField("Matrix username", text: $username).textFieldStyle(.roundedBorder)
+                SecureField("Password", text: $password).textFieldStyle(.roundedBorder)
+                Button(busy ? "Connecting…" : "Connect", action: connect).disabled(busy)
+                if let message { Text(message).foregroundStyle(RelayTheme.danger) }
+              }.padding(.top, 14)
+            }
+          }
+          Label("Conversations stay on your device and message server. Replies require your confirmation.", systemImage: "lock.shield")
+            .font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
+        }.frame(maxWidth: .infinity)
+      }
+    }
+  }
+  #endif
+  private func restoreSession() {
+    if let data = try? KeychainStore.read("matrix-session"), let saved = try? JSONDecoder().decode(MatrixSession.self, from: data) {
+      server = saved.server.absoluteString; username = saved.user_id
+    }
   }
   func connect() {
     guard let url = URL(string: server), url.host != nil else {

@@ -524,7 +524,7 @@ private struct MacSettingsView: View {
           }.buttonStyle(.plain)
           NavigationLink { ConnectionSettingsView() } label: { settingsRow("Connected Apps", detail: "Choose what Relay can see", icon: "link") }
           NavigationLink { NotificationSettingsView() } label: { settingsRow("Notifications", detail: "Private reminders, on your terms", icon: "bell") }
-          NavigationLink { WorkspaceSettingsView() } label: { settingsRow("Privacy & Data", detail: "Review, export, or remove data", icon: "hand.raised") }
+          NavigationLink { WorkspaceSettingsView(privacyOnly: true) } label: { settingsRow("Privacy & Data", detail: "Review, export, or remove data", icon: "hand.raised") }
           NavigationLink { DeviceSettingsView() } label: { settingsRow("Devices", detail: "iPhone, iPad, Mac, and Web", icon: "laptopcomputer") }
           NavigationLink { HelpSettingsView() } label: { settingsRow("Help & Feedback", detail: "Make Relay work for you", icon: "questionmark.circle") }
           NavigationLink { WorkspaceSettingsView() } label: { settingsRow("Processing & Workspace", detail: "Local model, account, and sync", icon: "cpu") }
@@ -537,7 +537,7 @@ private struct MacSettingsView: View {
             Text("Connect only the chats you want to include. Review every suggested plan, amount, or note before saving it.").font(.system(size: 14)).foregroundStyle(RelayTheme.muted).lineSpacing(4)
             NavigationLink { ConnectionSettingsView() } label: { detailRow("Connected apps", detail: store.matrixStatus, symbol: "link") }
             Button { connections = true } label: { detailRow("Selected conversations", detail: "\(store.rooms.filter(\.opted_in).count) chats included", symbol: "bubble.left") }.buttonStyle(.plain)
-            NavigationLink { WorkspaceSettingsView() } label: { detailRow("Your data", detail: "Export or remove saved content", symbol: "externaldrive") }
+            NavigationLink { WorkspaceSettingsView(privacyOnly: true) } label: { detailRow("Your data", detail: "Export or remove saved content", symbol: "externaldrive") }
             Button("Manage Connections") { connections = true }.buttonStyle(.borderless).foregroundStyle(RelayTheme.accentText).frame(maxWidth: .infinity).padding(.vertical, 8)
           }.padding(8)
         }.frame(maxWidth: .infinity)
@@ -564,7 +564,7 @@ struct MacPreferencesView: View {
   @EnvironmentObject private var store: RelayStore
   @State private var selection = "Privacy & Data"
   @State private var query = ""
-  private let pages = [("General", "gearshape"), ("Connections", "link"), ("Notifications", "bell"), ("Privacy & Data", "hand.raised"), ("Devices", "laptopcomputer")]
+  private let pages = [("General", "gearshape"), ("Connections", "link"), ("Notifications", "bell"), ("Privacy & Data", "hand.raised"), ("Devices", "laptopcomputer"), ("Help & Feedback", "questionmark.circle")]
   var body: some View {
     HStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 20) {
@@ -579,31 +579,43 @@ struct MacPreferencesView: View {
         Spacer()
       }.padding(20).frame(width: 220).background(RelayTheme.secondarySurface)
       NavigationStack {
-        VStack(alignment: .leading, spacing: 0) {
-          Text(selection).font(.system(size: 26, weight: .bold)).padding(24)
+        Group {
           switch selection {
           case "Connections": ConnectionSettingsView()
           case "Notifications": NotificationSettingsView()
           case "Devices": DeviceSettingsView()
-          case "Privacy & Data":
-            Form {
-              Text("Control the context Relay keeps.").foregroundStyle(RelayTheme.muted)
-              Section {
-                LabeledContent("Selected chats", value: "\(store.rooms.filter(\.opted_in).count) conversations")
-                LabeledContent("Suggestions", value: "Review before saving")
-                LabeledContent("Personal notes", value: "Visible only to you · On this device")
-              }
-              Section("Your data, on your terms") {
-                NavigationLink("Review, export, or remove data") { WorkspaceSettingsView() }
-                NavigationLink("Manage connected apps") { ConnectionSettingsView() }
-                NavigationLink("Manage account and processing") { WorkspaceSettingsView() }
-              }
-            }.formStyle(.grouped)
+          case "Privacy & Data": WorkspaceSettingsView(privacyOnly: true)
+          case "Help & Feedback": HelpSettingsView()
           default: WorkspaceSettingsView()
           }
         }.background(RelayTheme.background)
       }.id(selection)
     }.font(.system(size: 13)).foregroundStyle(RelayTheme.ink)
+  }
+}
+
+/// Shared presentation for desktop setup sheets, matching the main workspace.
+struct MacSetupShell<Content: View>: View {
+  @Environment(\.dismiss) private var dismiss
+  let title: String
+  let subtitle: String
+  let symbol: String
+  @ViewBuilder var content: () -> Content
+  var body: some View {
+    VStack(spacing: 0) {
+      HStack(spacing: 16) {
+        Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(RelayTheme.accentText)
+          .frame(width: 52, height: 52).background(RelayTheme.selection, in: RoundedRectangle(cornerRadius: 14))
+        VStack(alignment: .leading, spacing: 6) {
+          Text(title).font(.system(size: 25, weight: .bold))
+          Text(subtitle).font(.system(size: 13)).foregroundStyle(RelayTheme.muted)
+        }
+        Spacer()
+        Button("Done") { dismiss() }.buttonStyle(.borderedProminent).controlSize(.large)
+      }.padding(26).background(RelayTheme.surface)
+      ScrollView { content().padding(26).frame(maxWidth: .infinity, alignment: .leading) }
+    }.font(.system(size: 13)).foregroundStyle(RelayTheme.ink).background(RelayTheme.background)
+      .frame(width: 880, height: 720)
   }
 }
 #endif

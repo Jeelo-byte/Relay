@@ -9,6 +9,13 @@ struct IMessageConnectView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var busy = false
   var body: some View {
+    #if os(macOS)
+    desktopSetup
+    #else
+    formBody
+    #endif
+  }
+  var formBody: some View {
     NavigationStack {
       Form {
         Section("iMessage on This Mac") {
@@ -57,4 +64,52 @@ struct IMessageConnectView: View {
         #endif
     }
   }
+  #if os(macOS)
+  private var desktopSetup: some View {
+    MacSetupShell(title: "iMessage, connected to your Mac.",
+      subtitle: "Your real conversations. Only the ones you choose.", symbol: "message") {
+      VStack(alignment: .leading, spacing: 22) {
+        RelayPanel {
+          HStack(alignment: .top, spacing: 22) {
+            VStack(alignment: .leading, spacing: 14) {
+              Label(store.imessageStatus, systemImage: store.imessageError == nil ? "message" : "exclamationmark.shield")
+                .font(.system(size: 18, weight: .semibold)).foregroundStyle(RelayTheme.accentText)
+              Text("Sign in to Messages on this Mac. Give Relay Full Disk Access, then restart Relay so it can read the conversations you choose.")
+                .foregroundStyle(RelayTheme.muted).fixedSize(horizontal: false, vertical: true)
+              if let error = store.imessageError { Text(error).font(.caption).foregroundStyle(RelayTheme.danger) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 12) {
+              Button("Open Full Disk Access Settings") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) }
+                .buttonStyle(.bordered)
+              Button(busy ? "Checking…" : "Check Access & Refresh Chats") {
+                busy = true; Task { await store.discoverIMessages(); busy = false }
+              }.buttonStyle(.borderedProminent).disabled(busy)
+            }
+          }
+        }
+        RelayPanel {
+          VStack(alignment: .leading, spacing: 16) {
+            Text("Choose conversations").font(.system(size: 20, weight: .bold))
+            Text("Chats start off. New messages appear after you enable a conversation; previous history is not imported.")
+              .foregroundStyle(RelayTheme.muted)
+            ForEach(store.rooms.filter { $0.id.hasPrefix("imessage:") }) { room in
+              Toggle(store.roomName(for: room), isOn: Binding(get: { store.rooms.first { $0.id == room.id }?.opted_in ?? false }, set: { enabled in Task { await store.setIMessageOptIn(room.id, enabled) } }))
+                .toggleStyle(.switch).padding(.vertical, 6)
+              Divider().overlay(RelayTheme.line)
+            }
+            if !store.rooms.contains(where: { $0.id.hasPrefix("imessage:") }) {
+              Label("Check access to load your Messages conversations.", systemImage: "bubble.left.and.bubble.right")
+                .foregroundStyle(RelayTheme.muted).padding(.vertical, 14)
+            }
+            Button("Import Recent Messages") { Task { await store.importRecentIMessages() } }.buttonStyle(.bordered)
+            Button("Sync Chosen iMessage Chats") { Task { await store.syncIMessages() } }.buttonStyle(.bordered)
+          }
+        }
+        Label("Relay submits iMessage drafts through Messages only after Review Send → Send Message. macOS will ask you to allow control of Messages the first time.", systemImage: "lock.shield")
+          .font(.system(size: 12)).foregroundStyle(RelayTheme.muted)
+      }
+    }
+  }
+  #endif
+
 }
