@@ -5,6 +5,7 @@ import EventsWorkspace, { Icon, formatDue, initials } from "./EventsWorkspace";
 import { PeopleWorkspace, WebSettings } from "./WorkspacePanels";
 import RecapsWorkspace from "./RecapsWorkspace";
 import LiveMessages from "./LiveMessages";
+import { JoinDevice } from "./DevicePairing";
 import {
   derive,
   unwrap,
@@ -35,6 +36,7 @@ export default function Relay() {
     [status, setStatus] = useState("Locked"),
     [destination, setDestination] = useState("Recaps"),
     [browse, setBrowse] = useState(false);
+  const [usePassphrase, setUsePassphrase] = useState(false);
   const versions = useRef(new Map()),
     since = useRef(0),
     pulling = useRef(false),
@@ -191,6 +193,7 @@ export default function Relay() {
     since.current = 0;
     setStatus("Locked");
     setBusy(false);
+    setUsePassphrase(false);
     setError("");
   }
   useEffect(() => {
@@ -317,7 +320,9 @@ export default function Relay() {
           Unlock the agreements you created on your Apple devices. Your keys
           stay in this browser’s memory.
         </p>
-        <form onSubmit={login}>
+        {!usePassphrase && <JoinDevice onPaired={s => { setSession(s); pull(s); }} />}
+        <button onClick={() => { setUsePassphrase(!usePassphrase); setError(""); setPass(""); }}>{usePassphrase ? "Pair This Device Instead" : "Use My Passphrase"}</button>
+        {usePassphrase && <form onSubmit={login}>
           <label>
             Handle
             <input
@@ -345,7 +350,7 @@ export default function Relay() {
           <button className="primary" disabled={busy}>
             {busy ? "Unlocking…" : "Unlock Agreements"}
           </button>
-        </form>
+        </form>}
         <nav className="welcome-links" aria-label="Before you unlock">
           <Link className="setup-guide-link" href="/">About Relay</Link>
           <Link className="setup-guide-link" href="/docs">Set Up WhatsApp & Read the Guide</Link>

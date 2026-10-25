@@ -23,6 +23,14 @@ Messages has no transaction-key API. If sending times out, Relay preserves the d
 
 Use the app bundle built by Xcode or `bash scripts/package-mac.sh`. The package and Xcode target include Contacts and Apple Events usage descriptions and Mac Automation entitlements. An unsigned Swift package executable is not the recommended way to exercise macOS privacy permissions. Changing ad-hoc signatures may require granting access again.
 
+### Conversation names and selection
+
+On Mac, the conversation chooser has a fixed search field above a bounded, scrollable list. Search by conversation title, saved contact name, phone number, or email; use Included to review chosen conversations. Select a row to include or pause it. New conversations remain off until selected. The optional Import Recent Messages action includes up to 100 earlier messages from each chosen chat.
+
+Choose **Use Contact Names** to request macOS Contacts access. Relay fetches names, phone numbers, and email addresses through the public Contacts framework, builds an in-memory lookup on this Mac, and never uploads the address book. Contacts permission is optional: unknown, ambiguous, or unavailable contacts retain their identifiers. Existing group titles are preserved; unnamed groups use participant names where available. Automatic display-name lookup uses normalized numbers and a US/Canada regional prefix rule rather than arbitrary suffix matching. Identity linking in People keeps the exact-address rules below; explicit contact names and unlink decisions take priority over automatic display lookup. Chat membership metadata is kept in the existing encrypted, local-only room cache. Display names never replace the stable conversation ID used for sending or change selected chats or cursors.
+
+Names are also used in the Mac conversation sidebar, message headers, sender labels, and People profiles. Saved evidence and agreement snapshots remain unchanged. Contacts changes refresh the in-memory index; locking or signing out clears it. Without Full Disk Access, previously cached chats remain searchable, but refreshing Messages membership metadata still requires that access.
+
 ## Import contacts and link profiles
 
 In **People**, choose **Import Contacts → Import Device Contacts**, **Import vCard File**, or **Add Person**. Device import requests Contacts permission only when selected and imports the contacts macOS/iOS makes accessible. vCard files can come from Apple Contacts, Google Contacts, Outlook, or another address book that exports `.vcf`. Importing does not modify the source address book.

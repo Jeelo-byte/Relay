@@ -41,6 +41,11 @@ import SwiftUI
   @Published public private(set) var setupStep: SetupStep = .welcome
   @Published public var imessageStatus = "Not Connected"
   @Published public var imessageError: String?
+  @Published public private(set) var contactNames = ContactNameIndex()
+  @Published public private(set) var contactNameAccess: ContactNameAccess = .notRequested
+  @Published public private(set) var loadingContactNames = false
+  @Published public private(set) var contactNameError: String?
+  private var contactNameGeneration = 0
   private var imessageSyncing = false
   private var workspaceGeneration = UUID()
   #if os(macOS)
@@ -111,6 +116,15 @@ import SwiftUI
     #endif
     if ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] != nil,
       (ProcessInfo.processInfo.arguments.contains("-demo") || designPreview) && !started { loadDemo() }
+  }
+  public func displayName(for room: ChatRoom) -> String { roomName(for: room) }
+  public func matchesConversation(_ room: ChatRoom, query: String) -> Bool {
+    roomName(for: room).localizedStandardContains(query)
+      || room.participants.contains { displayName(for: $0).localizedStandardContains(query) }
+      || contactNames.matches(room, query: query)
+  }
+  public func displayName(forRoomID id: String, fallback: String) -> String {
+    rooms.first { $0.id == id }.map { displayName(for: $0) } ?? fallback
   }
   public var visible: [Agreement] { agreements.filter { $0.review_state != .dismissed } }
   public var dismissed: [Agreement] { agreements.filter { $0.review_state == .dismissed } }
@@ -292,6 +306,8 @@ import SwiftUI
     return values.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
   }
   public func connect(_ newSession: AccountSession) throws {
+    contactNameGeneration += 1
+    contactNames = ContactNameIndex()
     workspaceGeneration = UUID()
     replySuggestions = [:]
     replyAIErrors = [:]; automaticAIError = nil
@@ -344,6 +360,8 @@ import SwiftUI
     Task { await semanticIndex.clear() }
     if session != nil {
       locked = true
+      contactNames = ContactNameIndex()
+      contactNameGeneration += 1
       syncStatus = "Locked"
     }
   }
@@ -372,6 +390,7 @@ import SwiftUI
     } catch { self.error = "Use your passphrase to unlock. Biometric access was cancelled or the enrolled biometrics changed." }
   }
   public func signOut() {
+    contactNameGeneration += 1
     workspaceGeneration = UUID()
     replySuggestions = [:]
     replyAIErrors = [:]; automaticAIError = nil
@@ -379,6 +398,9 @@ import SwiftUI
     syncTask?.cancel()
     imessageStatus = "Not Connected"
     imessageError = nil
+    contactNames = ContactNameIndex()
+    contactNameAccess = .notRequested
+    contactNameError = nil
     isDemo = false
     try? local?.setMeta("demo", value: "false")
     for id in (try? local?.ids()) ?? [] { try? local?.remove(id) }
@@ -948,6 +970,23 @@ extension RelayStore {
 
 #if os(macOS)
 extension RelayStore {
+  public func refreshContactNames(requestAccess: Bool = false) async {
+    guard !locked, !isDemo, !loadingContactNames,
+      ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil else { return }
+    loadingContactNames = true; contactNameError = nil
+    defer { loadingContactNames = false }
+    let account = session?.account_id
+    let generation = contactNameGeneration
+    do {
+      let (index, access) = try await LocalContactDirectory.load(requestAccess: requestAccess)
+      guard !locked, session?.account_id == account, generation == contactNameGeneration else { return }
+      contactNames = index; contactNameAccess = access
+    } catch {
+      guard !locked, session?.account_id == account, generation == contactNameGeneration else { return }
+      contactNames = ContactNameIndex(); contactNameAccess = .unavailable
+      contactNameError = "Relay couldn’t load contact names. You can still search and choose conversations."
+    }
+  }
   public func discoverIMessages() async {
     guard !locked, !isDemo else {
       imessageError = "Open your own workspace before connecting iMessage."
@@ -1045,11 +1084,22 @@ extension RelayStore {
     guard !locked else { return nil }
     return ContactMatching.profile(for: party, in: contacts)
   }
-  public func displayName(for party: Party) -> String { contact(for: party)?.name ?? party.display_name_snapshot }
+  public func displayName(for party: Party) -> String {
+    if let contact = contact(for: party) { return contact.name }
+    guard !locked, !party.is_self, party.network == .imessage,
+      !contacts.contains(where: { $0.excludedPartyIDs.contains(party.id) }) else { return party.display_name_snapshot }
+    let handle = party.id.hasPrefix("imessage:") ? String(party.id.dropFirst("imessage:".count)) : party.id
+    return contactNames.name(for: handle) ?? contactNames.name(for: party.display_name_snapshot) ?? party.display_name_snapshot
+  }
   public func roomName(for room: ChatRoom) -> String {
-    guard room.participants.count == 1, let party = room.participants.first,
-      room.name == party.display_name_snapshot, let contact = contact(for: party) else { return room.name }
-    return contact.name
+    if let title = room.native_display_name, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return title }
+    if room.participants.count == 1, let party = room.participants.first,
+      room.name == party.display_name_snapshot || room.native_display_name == "" { return displayName(for: party) }
+    if room.native_display_name == "", room.participants.count > 1 {
+      let labels = room.participants.map { displayName(for: $0) }
+      return labels.prefix(3).joined(separator: ", ") + (labels.count > 3 ? " +\(labels.count - 3)" : "")
+    }
+    return contactNames.displayName(for: room)
   }
   public func parties(for contact: ContactProfile) -> [Party] {
     var parties = knownParties.filter { self.contact(for: $0)?.id == contact.id }

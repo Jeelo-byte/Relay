@@ -1,5 +1,8 @@
 import RelayKit
 import SwiftUI
+#if os(macOS)
+import Contacts
+#endif
 
 @main struct RelayApp: App {
   @StateObject private var store = RelayStore()
@@ -12,6 +15,13 @@ import SwiftUI
   var mainWindow: some Scene {
     WindowGroup {
       RootView().environmentObject(store).environmentObject(model).environmentObject(reminders).tint(RelayTheme.primary)
+        #if os(macOS)
+        .task { await store.refreshContactNames() }
+        .onReceive(NotificationCenter.default.publisher(for: .CNContactStoreDidChange)) { _ in
+          Task { await store.refreshContactNames() }
+        }
+        .onChange(of: store.locked) { _, locked in if !locked { Task { await store.refreshContactNames() } } }
+        #endif
         .onChange(of: store.agreements) { _, values in
           if !store.locked { Task { await reminders.refresh(agreements: values) } }
         }
@@ -30,6 +40,9 @@ import SwiftUI
           } else {
             if let inactiveSince, Date().timeIntervalSince(inactiveSince) >= Double(lockAfter) { store.lock() }
             inactiveSince = nil
+            #if os(macOS)
+            Task { await store.refreshContactNames() }
+            #endif
             Task { await store.sync(); await store.syncMatrix(); await syncIMessages() }
           }
         }

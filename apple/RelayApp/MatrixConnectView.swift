@@ -91,22 +91,8 @@ struct MatrixConnectView: View {
         VStack(alignment: .leading, spacing: 20) {
           RelayPanel {
             VStack(alignment: .leading, spacing: 14) {
-              HStack {
-                Text("Selected conversations").font(.system(size: 19, weight: .bold))
-                Spacer()
-                Text("\(store.rooms.filter(\.opted_in).count) included").font(.caption).foregroundStyle(RelayTheme.muted)
-              }
-              Text("Turn on the chats you want Relay to read. You can pause them here at any time.").foregroundStyle(RelayTheme.muted)
-              ForEach(store.rooms.filter { !$0.id.hasPrefix("imessage:") }) { room in
-                Toggle(isOn: Binding(get: { store.rooms.first { $0.id == room.id }?.opted_in ?? false }, set: { store.setOptIn(room.id, $0) })) {
-                  VStack(alignment: .leading, spacing: 4) {
-                    Text(room.name).font(.system(size: 14, weight: .medium))
-                    Text(room.network.label).font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
-                  }
-                }.toggleStyle(.switch).accessibilityLabel(room.name + ", " + room.network.label).padding(.vertical, 5)
-                Divider().overlay(RelayTheme.line)
-              }
-              if store.rooms.isEmpty { Text("Your chats will appear after you connect an app.").foregroundStyle(RelayTheme.muted) }
+              MacConversationPicker(rooms: store.rooms.filter { !$0.id.hasPrefix("imessage:") },
+                title: "Selected conversations") { room, enabled in store.setOptIn(room.id, enabled) }
               Button("Sync Chosen Chats") { Task { await store.syncMatrix() } }.buttonStyle(.borderedProminent).disabled(store.isDemo || busy)
             }
           }

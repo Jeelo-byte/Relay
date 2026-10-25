@@ -148,8 +148,15 @@ struct DeviceSettingsView: View {
   @State private var selected: AccountDevice?
   @State private var passphrase = ""
   @State private var removing = false
+  @State private var pairing = false
   var body: some View {
     SettingsPage(title: "Devices", subtitle: "The places you use Relay. Review and manage access to your encrypted account.", symbol: "laptopcomputer") {
+      if store.session != nil && !store.locked {
+        SettingsCard("Pair Another Device") {
+          Text("Scan a private code to connect your iPhone, iPad, Mac, or browser without entering your passphrase.")
+          Button("Pair a Device") { pairing = true }.buttonStyle(.borderedProminent)
+        }
+      }
       SettingsCard("Your devices") {
         if store.session == nil {
           ContentUnavailableView("On This Device", systemImage: "laptopcomputer", description: Text("Connect a Relay account to view and manage its signed-in devices."))
@@ -184,6 +191,7 @@ struct DeviceSettingsView: View {
         Text("Removing a device revokes its sessions. Your synced encrypted records remain in your account.").foregroundStyle(RelayTheme.muted)
       }
     }.task { await reload() }.refreshable { await reload() }
+      .sheet(isPresented: $pairing, onDismiss: { Task { await reload() } }) { PairDeviceView() }
       .sheet(item: $selected, onDismiss: { passphrase = "" }) { device in
         NavigationStack {
           SettingsPage(title: "Remove Device", subtitle: "Confirm this change with your current passphrase.", symbol: "laptopcomputer.trianglebadge.exclamationmark") {

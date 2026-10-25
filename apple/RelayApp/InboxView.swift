@@ -63,8 +63,7 @@ struct ConversationView: View {
         .onChange(of: store.highlightedMessageID) { _, _ in reveal(using: proxy) }
         .onChange(of: messages.count) { _, _ in if let last = messages.last { proxy.scrollTo(last.id, anchor: .bottom) } }
     }.background(desktopEmbedded ? RelayTheme.surface : RelayTheme.background)
-      .navigationTitle(desktopEmbedded ? "" : (room.map { store.roomName(for: $0) } ?? "Conversation"))
-      .searchable(text: $query, prompt: "Search this conversation")
+      .modifier(ConversationChrome(embedded: desktopEmbedded, title: room.map { store.displayName(for: $0) } ?? "Conversation", query: $query))
       .safeAreaInset(edge: .bottom) { composer }
       .sheet(isPresented: $confirmSend) { reviewSendView }
       .onAppear {
@@ -96,7 +95,7 @@ struct ConversationView: View {
           RelayPanel {
             VStack(alignment: .leading, spacing: 12) {
               Text(draft).font(.title3).textSelection(.enabled)
-              Text("To: \(room.map { store.roomName(for: $0) } ?? "Conversation")").font(.caption).foregroundStyle(RelayTheme.muted)
+              Text("To: \(room.map { store.displayName(for: $0) } ?? "Conversation")").font(.caption).foregroundStyle(RelayTheme.muted)
             }
           }
           Button(store.isDemo ? "Add Sample Message" : (checkingIMessage ? "Check Send Status" : "Send Message")) {
@@ -162,7 +161,7 @@ struct ConversationView: View {
       }
       if let reply = message.reply_to_event_id {
         let original = store.messages.first { $0.room_id == roomID && $0.event_id == reply && !$0.redacted }
-        Text(original.map { "Reply to \($0.sender.display_name_snapshot): \($0.text)" } ?? "Reply · Original message unavailable")
+        Text(original.map { "Reply to \(store.displayName(for: $0.sender)): \($0.text)" } ?? "Reply · Original message unavailable")
           .font(.caption).foregroundStyle(RelayTheme.muted).lineLimit(2)
       }
       Text(message.redacted ? "Message deleted" : message.text).font(desktopEmbedded ? .system(size: 13) : .body)
@@ -195,7 +194,7 @@ private struct MessageImageView: View {
       if let image {
         image.resizable().scaledToFit().frame(maxWidth: 480, maxHeight: 360, alignment: .leading)
           .clipShape(RoundedRectangle(cornerRadius: 10))
-          .accessibilityLabel("Photo from \(message.sender.display_name_snapshot)")
+          .accessibilityLabel("Photo from \(store.displayName(for: message.sender))")
           .accessibilityIdentifier("message-image-preview")
       } else if let failure {
         VStack(alignment: .leading, spacing: 8) {
@@ -221,5 +220,15 @@ private struct MessageImageView: View {
       #endif
     } catch is CancellationError { }
     catch { failure = "Photo unavailable. Check your message connection and try again." }
+  }
+}
+
+private struct ConversationChrome: ViewModifier {
+  var embedded: Bool
+  var title: String
+  @Binding var query: String
+  func body(content: Content) -> some View {
+    if embedded { content }
+    else { content.navigationTitle(title).searchable(text: $query, prompt: "Search this conversation") }
   }
 }

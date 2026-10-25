@@ -56,3 +56,5 @@ Embedding API reference: [Apple Natural Language — NLEmbedding](https://develo
 - iPhone Simulator: chat search/source navigation, recap photos/sources, and explicit confirmation before a sample send all passed. Result bundle: `artifacts/ai-messaging-ui.xcresult` in the original checkout. Fixtures stayed isolated; no real message was sent.
 
 These results establish the first automatic-AI checkpoint. Real-network cross-device AI/account sync, the broader labeled quality corpus, unsupported languages, physical-device resource behavior, and the full accessibility pass remain open.
+
+The combined checkpoint also incorporates `8dec14c` (device pairing) and `dcdca44` (searchable Mac conversation selection/contact names). After resolving the reply-area, web imports, and test-script overlaps, the combined Swift run passed 74 tests with six opt-in skips; JavaScript passed 19 with three live-service skips; the production web build passed. The new pairing and conversation-selection behavior is retained.
