@@ -438,6 +438,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Relay does not use the camera.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Send only iMessage drafts you review and confirm through Messages on this Mac.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your private Relay agreements.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -446,6 +447,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.relay.agreements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = apple/RelayApp/Relay.macOS.entitlements;
 				PRODUCT_NAME = Relay;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
@@ -483,6 +485,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Relay does not use the camera.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Send only iMessage drafts you review and confirm through Messages on this Mac.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your private Relay agreements.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -491,6 +494,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.relay.agreements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = apple/RelayApp/Relay.macOS.entitlements;
 				PRODUCT_NAME = Relay;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";

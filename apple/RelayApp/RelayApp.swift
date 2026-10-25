@@ -43,6 +43,14 @@ import SwiftUI
           }
         }
         .task {
+          #if os(macOS)
+          while !Task.isCancelled {
+            await store.syncIMessages()
+            do { try await Task.sleep(for: .seconds(3)) } catch { break }
+          }
+          #endif
+        }
+        .task {
           while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(30))
             if !Task.isCancelled && scenePhase == .active { await store.sync(); await syncIMessages() }

@@ -12,7 +12,7 @@ struct IMessageConnectView: View {
     NavigationStack {
       Form {
         Section("iMessage on This Mac") {
-          Text("Relay reads selected conversations from the Messages app on this Mac. It never sends iMessages.")
+          Text("Relay reads selected conversations from Messages on this Mac. It sends iMessage drafts only after you review and confirm them.")
           #if os(macOS)
           Text("Sign in to Messages first. In System Settings → Privacy & Security → Full Disk Access, add Relay and turn it on. Quit and reopen Relay after changing access.")
           Button("Open Full Disk Access Settings") {

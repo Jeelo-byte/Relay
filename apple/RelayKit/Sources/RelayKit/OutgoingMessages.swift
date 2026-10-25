@@ -8,6 +8,8 @@ public struct OutgoingMessage: Codable, Identifiable, Equatable, Sendable {
   public var state: String
   public var event_id: String?
   public var error: String?
+  public var native_after_row: Int64?
+  var nativeRetryAllowed: Bool { state == "failed" }
   public init(id: UUID = UUID(), room: String, body: String) {
     self.id = id; room_id = room; self.body = body; created_at = Clock.ms; state = "pending"
   }

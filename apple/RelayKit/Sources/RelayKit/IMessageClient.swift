@@ -46,6 +46,18 @@ public struct IMessageClient: Sendable {
     }
   }
 
+  public func sendTarget(room: String) throws -> String {
+    guard let id = chatID(room) else { throw IMessageSendError.notSent("Choose an iMessage conversation on this Mac.") }
+    return try read { db in
+      guard let row = try Row.fetchOne(db, sql: "SELECT guid,service_name FROM chat WHERE ROWID=?", arguments: [id]),
+        let guid: String = row["guid"], guid.hasPrefix("iMessage;"),
+        (row["service_name"] as String?) == "iMessage" else {
+        throw IMessageSendError.notSent("This iMessage conversation is no longer available. Refresh your chats.")
+      }
+      return guid
+    }
+  }
+
   public func messages(room: String, after: Int64, limit: Int = 200) throws -> (messages: [ChatMessage], cursor: Int64) {
     guard let id = chatID(room) else { return ([], after) }
     return try read { db in

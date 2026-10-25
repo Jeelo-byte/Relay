@@ -24,7 +24,7 @@ These sketches are product context. They do not authorize external messages or c
 - Final warm surfaces, 16-point cards, burgundy decisions, and readable dark-mode accent text.
 - Events dashboard and interactive week calendar, with existing create/edit/review/complete workflows retained.
 - Messages conversation list, source-linked conversation views, selected-chat local search, editable composer, explicit confirmation, persistent encrypted outbox, and idempotent Matrix transaction IDs.
-- Sending checks current room encryption and consent before submitting. iMessage currently remains a read-only Mac adapter; its composer offers copying rather than pretending to send.
+- Sending checks current room encryption and consent before submitting. iMessage on Mac now submits explicitly confirmed drafts through Messages; delivery remains visible in Messages and uncertain requests are not automatically retried.
 - People grid, shared agreements, and editable encrypted device-local notes. Notes are clearly marked as not yet synced.
 - Day-grouped recaps, exact quoted fallback, opt-in local Gemma generation with validated citations, source-change marking, encrypted recap sync, chat/app filters, date selection, and sample photo assets exported from Figma.
 - Daily/weekly/monthly/yearly recurrence with explicit review of the next occurrence; unsupported rules remain manual.

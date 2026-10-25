@@ -149,7 +149,7 @@ struct HelpSettingsView: View {
       Section("Start with one conversation") { Text("Connect an app in Settings, then choose the chats Relay can include. Full conversations stay on your device and your message server.") }
       Section("Recaps") { Text("Quoted highlights work without a model. Load Gemma in Processing & Workspace for local written recaps. Open a recap to inspect its original sources.") }
       Section("Events") { Text("Review suggested plans before accepting them. Money is grouped by currency. Completing an agreement never sends money or messages.") }
-      Section("Messages") { Text("Edit your draft, choose Review Send, then confirm the destination and message. A failed send keeps the same transaction identity when retried. iMessage currently uses the read-only Mac connection.") }
+      Section("Messages") { Text("Edit your draft, choose Review Send, then confirm the destination and message. A failed send keeps the same transaction identity when retried. iMessage drafts are submitted through Messages on your Mac after confirmation. If submission times out, check Messages before starting a new draft.") }
       Section("Your data") { Text("Use Privacy & Data to export agreements, restore dismissed items, and manage your account. Person notes currently stay encrypted on the device where you create them.") }
     }.navigationTitle("Help & Feedback")
   }

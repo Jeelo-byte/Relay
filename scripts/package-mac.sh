@@ -18,9 +18,9 @@ with open(sys.argv[1], 'wb') as f:
     plistlib.dump({'CFBundleExecutable':'Relay', 'CFBundleIdentifier':'app.relay.agreements',
       'CFBundleName':'Relay', 'CFBundleIconFile':'Relay', 'CFBundlePackageType':'APPL', 'CFBundleShortVersionString':'0.2.0',
       'CFBundleVersion':'2', 'LSMinimumSystemVersion':'14.0',
-      'NSHighResolutionCapable':True, 'NSFaceIDUsageDescription':'Unlock your private Relay agreements.'}, f)
+      'NSHighResolutionCapable':True, 'NSAppleEventsUsageDescription':'Send only the iMessage drafts you review and confirm through Messages on this Mac.', 'NSFaceIDUsageDescription':'Unlock your private Relay agreements.'}, f)
 PY
 chmod -R u+w "$app_path"
 xattr -cr "$app_path"
-codesign --force --deep --sign - "$app_path"
+codesign --force --deep --entitlements apple/RelayApp/Relay.macOS.entitlements --sign - "$app_path"
 printf 'Built %s\n' "$app_path"

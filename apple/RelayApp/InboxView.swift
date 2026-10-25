@@ -19,6 +19,13 @@ struct ConversationView: View {
     return store.messages.filter { $0.room_id == roomID && (query.isEmpty || (!$0.redacted && $0.text.localizedCaseInsensitiveContains(query))) }
       .sorted { $0.ts == $1.ts ? $0.id < $1.id : $0.ts < $1.ts }
   }
+  private var nativeSendingUnavailable: Bool {
+    #if os(macOS)
+    return false
+    #else
+    return !store.isDemo && roomID.hasPrefix("imessage:")
+    #endif
+  }
   var body: some View {
     ScrollViewReader { proxy in
       ScrollView {
@@ -62,7 +69,7 @@ struct ConversationView: View {
       .safeAreaInset(edge: .bottom) { composer }
       .sheet(isPresented: $confirmSend) { reviewSendView }
       .onAppear {
-        if let pending = store.outgoing.last(where: { $0.room_id == roomID && $0.state != "sent" }) { draft = pending.body; transaction = pending.id }
+        if let pending = store.outgoing.last(where: { $0.room_id == roomID && !(["sent", "submitted"].contains($0.state)) }) { draft = pending.body; transaction = pending.id }
       }
       .confirmationDialog("Discard This Draft?", isPresented: $confirmDiscard, titleVisibility: .visible) {
         Button("Discard Draft", role: .destructive) {
@@ -86,6 +93,9 @@ struct ConversationView: View {
               Text(draft).font(.title3).textSelection(.enabled)
               Text("To: \(room?.name ?? "Conversation")").font(.caption).foregroundStyle(RelayTheme.muted)
             }
+          }
+          if !store.isDemo && roomID.hasPrefix("imessage:") {
+            Text("Messages on this Mac will submit this draft to the existing conversation. Delivery is confirmed in Messages. An uncertain request won’t be retried automatically.").font(.caption).foregroundStyle(RelayTheme.muted)
           }
           Button(store.isDemo ? "Add Sample Message" : "Send Message") {
             Task {
@@ -115,11 +125,11 @@ struct ConversationView: View {
           Button("Discard") { confirmDiscard = true }.disabled(store.sendingMessage)
         }
         Button(store.sendingMessage ? "Sending…" : "Review Send", systemImage: "paperplane") { composerFocused = false; confirmSend = true }
-          .buttonStyle(.borderedProminent).disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draft.utf8.count > 16_000 || store.sendingMessage || room?.encrypted == true || (!store.isDemo && roomID.hasPrefix("imessage:")))
+          .buttonStyle(.borderedProminent).disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draft.utf8.count > 16_000 || store.sendingMessage || room?.encrypted == true || nativeSendingUnavailable)
       }.font(.subheadline)
-      if !store.isDemo && roomID.hasPrefix("imessage:") { Text("This Mac connection reads iMessage. Copy your draft into Messages to send it.").font(.caption).foregroundStyle(RelayTheme.muted) }
+      if !store.isDemo && roomID.hasPrefix("imessage:") { Text(nativeSendingUnavailable ? "Send iMessages from Relay on your Mac." : "Messages sends your confirmed draft on this Mac. macOS may ask you to allow Relay to control Messages.").font(.caption).foregroundStyle(RelayTheme.muted) }
       if let pending = store.outgoing.first(where: { $0.id == transaction }), let error = pending.error {
-        Text("Delivery not confirmed: \(error) Retry preserves the same send identity.").font(.caption).foregroundStyle(RelayTheme.warning)
+        Text("Delivery not confirmed: \(error)").font(.caption).foregroundStyle(RelayTheme.warning)
       }
     }.padding(16).background(.regularMaterial)
   }

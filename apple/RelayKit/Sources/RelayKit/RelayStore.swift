@@ -949,6 +949,7 @@ extension RelayStore {
         // Persist imported messages before advancing the saved cursor.
         cacheChats()
       }
+      reconcileIMessageOutbox()
       imessageError = nil
       imessageStatus = "Connected"
     } catch {
@@ -1037,8 +1038,12 @@ extension RelayStore {
       if previous.state == "sent" { return true }
     }
     if !isDemo && room.id.hasPrefix("imessage:") {
-      error = "This iMessage connection currently reads through your Mac. Copy the draft into Messages to send it."
+      #if os(macOS)
+      return await sendIMessage(text, room: room, transactionID: transactionID)
+      #else
+      error = "Send iMessages from Relay on your Mac."
       return false
+      #endif
     }
     let account = session?.account_id
     var message = OutgoingMessage(id: transactionID, room: id, body: text)
@@ -1100,3 +1105,75 @@ extension RelayStore {
     } catch { self.error = error.localizedDescription; return false }
   }
 }
+
+#if os(macOS)
+extension RelayStore {
+  private func sendIMessage(_ text: String, room: ChatRoom, transactionID: UUID) async -> Bool {
+    guard let local, !room.encrypted else { return false }
+    if let previous = outgoing.first(where: { $0.id == transactionID }) {
+      if previous.state == "sent" || previous.state == "submitted" { return true }
+      guard previous.nativeRetryAllowed else {
+        error = "Check this conversation in Messages before starting a new draft. The previous request may already have been sent."
+        return false
+      }
+    }
+    let account = session?.account_id
+    sendingMessage = true
+    defer { sendingMessage = false }
+    var dispatched = false
+    do {
+      let target = try await Task.detached {
+        let client = IMessageClient()
+        return (try client.sendTarget(room: room.id), try client.latest(room: room.id))
+      }.value
+      guard !locked, session?.account_id == account,
+        rooms.contains(where: { $0.id == room.id && $0.opted_in }) else { return false }
+      var record = OutgoingMessage(id: transactionID, room: room.id, body: text)
+      record.state = "dispatching"; record.native_after_row = target.1
+      var updated = outgoing.filter { $0.id != transactionID && $0.state != "sent" }
+      updated.append(record)
+      guard try JSONEncoder().encode(updated).count <= 60_000 else {
+        error = "Review or discard waiting drafts before sending another."; return false
+      }
+      // Persist the uncertainty marker BEFORE the non-idempotent Apple event.
+      try local.save(updated, id: outgoingRecord, dirty: false); outgoing = updated
+      dispatched = true
+      try IMessageSender.submit(chat: target.0, text: text)
+      if let index = outgoing.firstIndex(where: { $0.id == transactionID }) {
+        outgoing[index].state = "submitted"; outgoing[index].error = nil
+      }
+      try local.save(outgoing, id: outgoingRecord, dirty: false)
+      toast = "Submitted to Messages · Check delivery in Messages"
+      await syncIMessages()
+      return true
+    } catch {
+      guard !locked, session?.account_id == account else { return false }
+      let definiteFailure: Bool
+      if case IMessageSendError.notSent = error { definiteFailure = true } else { definiteFailure = !dispatched }
+      if let index = outgoing.firstIndex(where: { $0.id == transactionID }) {
+        outgoing[index].state = definiteFailure ? "failed" : "uncertain"
+        outgoing[index].error = error.localizedDescription
+        try? local.save(outgoing, id: outgoingRecord, dirty: false)
+      }
+      self.error = error.localizedDescription
+      return false
+    }
+  }
+  func reconcileIMessageOutbox() {
+    var used = Set(outgoing.compactMap(\.event_id))
+    var changed = false
+    for index in outgoing.indices where outgoing[index].room_id.hasPrefix("imessage:")
+      && ["dispatching", "submitted", "uncertain"].contains(outgoing[index].state) {
+      let record = outgoing[index]
+      if let message = messages.sorted(by: { $0.ts < $1.ts }).first(where: {
+        $0.room_id == record.room_id && $0.sender.is_self && !$0.redacted
+          && $0.text == record.body && $0.ts >= record.created_at && !used.contains($0.event_id)
+      }) {
+        outgoing[index].state = "sent"; outgoing[index].event_id = message.event_id
+        outgoing[index].error = nil; used.insert(message.event_id); changed = true
+      }
+    }
+    if changed { try? local?.save(outgoing, id: outgoingRecord, dirty: false) }
+  }
+}
+#endif
