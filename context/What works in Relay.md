@@ -4,11 +4,11 @@ Baseline: `main` at `1cede3a`, including implementation `5125b33`. Continuing on
 
 | | Count |
 | --- | --- |
-| Areas with passing evidence | 15 |
-| Built, not proven in use | 6 |
+| Areas with passing evidence | 16 |
+| Built, not proven in use | 5 |
 | Missing or blocked | 9 |
 
-You can explore the sample workspace. You cannot demo live chats yet. The sample workspace, manual agreements, and encryption are trustworthy. A message from a real chat, accepted on iPad, then visible on the website, has not been run. Automatic sending is intentionally absent.
+The Mac now displays a real incoming WhatsApp message from the single group selected by the user. The sample workspace and manual agreements also have passing evidence. A real-chat agreement accepted on iPad and visible on the website has not been run. Automatic sending is intentionally absent; outgoing delivery to a real messaging network is not yet verified.
 
 Counts of product areas at the current branch checkpoint. Source: tests, `docs/FINAL-DESIGN.md`, and GitHub Actions run 40167830184.
 
@@ -34,6 +34,8 @@ Counts of product areas at the current branch checkpoint. Source: tests, `docs/F
 | Account deletion | Exact handle and current passphrase required, followed by an explicit destructive confirmation in the app. Live API and native tests reject wrong proofs and verify that deleted account credentials and sessions stop working. Deletion uses disposable test accounts only. |
 | Physical iPhone launch | Relay.app was signed with an Apple Development certificate and installed on Tj’s iPhone 16. The provisioning profile includes that phone and expires November 1, 2026. After developer trust was completed, the app launched successfully; a physical-device screenshot confirms Help & Feedback is rendered (`artifacts/tj-iphone-running.png`). The user also confirmed it works. This verifies installation/startup, not all feature flows on hardware. No physical iPad has been installed. |
 
+| Live WhatsApp on Mac | October 25: local account authenticated, WhatsApp bridge reported linked, and the user’s exact test marker was found in the selected group’s Matrix room. Enabled only that group in the Mac app; its Messages screen visibly rendered the incoming test message. Screenshot: `artifacts/mac-whatsapp-live-message.png` (ignored/private). Bridge portal creation is restricted to the chosen group and backfill is off. No outgoing group message was sent; other networks and cross-device delivery remain unverified. |
+
 ## Built, not proven
 
 | Area | What is still open |
@@ -42,7 +44,7 @@ Counts of product areas at the current branch checkpoint. Source: tests, `docs/F
 | A reminder on a device | The plan is unit tested. No device has been checked to confirm a notification appears, or that the body stays private. |
 | Biometric unlock | Signed builds can use the current biometric set. An ad-hoc Mac build uses the login keychain and does not offer biometrics. |
 | Same account in the browser | The web client can unlock and decrypt. Creating an agreement on the Mac and seeing that same record in the browser has not been run. |
-| A linked chat account | Discord was running with no account linked. One local WhatsApp smoke test was recorded earlier and is not in the repo. The other networks are not linked. |
+
 | Accessibility | Dynamic Type, VoiceOver, keyboard, pointer, dark mode, and increased contrast have not been walked through. |
 
 ## Incomplete or awaiting setup
@@ -51,12 +53,12 @@ Counts of product areas at the current branch checkpoint. Source: tests, `docs/F
 | --- | --- |
 | Live chat on the website | The site shows saved excerpts. It does not open a Matrix room or send a message. |
 | Sending iMessage | Mac can copy a reply. It does not send, and it does not carry those chats to iPhone, iPad, or the server. |
-| Other chat networks | Synapse is healthy and seven bridge containers are running locally: WhatsApp, Discord, Signal, Slack, Google Messages, Messenger, and Instagram. This proves process readiness only. Linking and live traffic on each service remain unverified; Telegram still needs its API credentials. |
+| Other chat networks | Synapse is healthy and seven bridge containers are running locally: WhatsApp, Discord, Signal, Slack, Google Messages, Messenger, and Instagram. This proves process readiness only. WhatsApp incoming traffic is now verified on Mac for one selected group. Other services remain unlinked/unverified; Telegram still needs its API credentials. |
 | Data-key rotation and offline unlock | Passphrase changes, recovery resets, and account deletion now pass live tests. Rotating the actual encryption data key and offline passphrase unlock remain unfinished. Security screens compile, but their full user-interaction flows still need separate UI tests. |
 | Two devices editing one agreement | Optimistic conflicts, tombstones, high-water marks, and quarantine code exist; individual tombstone/high-water tests pass. Field-level three-way merging and the full cross-device conflict/rollback scenario remain unfinished or unverified. |
 | Real photos and attachments | The collage uses three sample images. Chat attachments stay unsupported placeholders. |
 | Synced person notes | Notes stay on the device that wrote them. |
-| Final onboarding and Settings | The five destinations are in place. The last design pass for onboarding and Settings is still open. |
+| Final onboarding and Settings | Release must open into the Figma onboarding flow, with no automatic sample conversations, agreements, people, photos, or recaps. Welcome, app connection, explicit chat selection, and preferences must be functional and match the final Figma design. Current demo startup is not the release experience. See the acceptance requirements below. |
 | Model evaluation and cloud mode | One Mac fixture passed. The ten-fixture gate, cloud provider, embeddings, OCR, and voice evidence are absent. |
 
 ## Current verification
@@ -66,6 +68,7 @@ Counts of product areas at the current branch checkpoint. Source: tests, `docs/F
 - Native recovery and deletion passed again in the final full run, retaining the original DEK and decrypting previously written data. Sign-in now serializes with credential changes and recovery to prevent stale authentication from creating a session after a reset. One intermediate rerun hit the expected local signup rate limit; test transports now use isolated fixture identities, matching the Node tests, without changing production limits. The final rerun passed.
 - Ciphertext audit: 19 blob rows inspected; no seeded plaintext markers found. Log: `artifacts/security-neon-audit.log`.
 - Final macOS security build passed (`artifacts/security-final-macos-build.log`); the security code also compiled in the passing iPhone and iPad Xcode UI runs. Web production build passed after the browser recap fix (`artifacts/security-web-final-build.log`).
+- October 25 live messaging: Mac message-server login and explicit opt-in for one user-selected WhatsApp group passed. The actual incoming test message rendered in the native Messages screen. Pairing and account credentials remain in ignored private storage; no credentials or personal conversation screenshots are committed. Sending, reconnect/relaunch, recaps, and cross-device verification are separate remaining tests.
 - October 25 device build: `artifacts/tj-iphone-build.log` passed using the Xcode application project, automatic provisioning, and the signed-in Personal Team. `codesign --verify --deep --strict` passed; `artifacts/tj-iphone-install.log` confirms installation on Tj’s physical iPhone 16. The initial launch was denied pending developer trust; after trust completed, launch succeeded (`artifacts/tj-iphone-launch.log`) and a screenshot confirmed the native UI (`artifacts/tj-iphone-running.png`). `scripts/run-iphone.sh` records the reproducible build/install/launch path. The prior bare-executable install error came from opening the root Swift package instead of `Relay.xcodeproj`.
 - Normal simulator launch requires Xcode signing enabled for Keychain access. An unsigned build showed a vault alert even though isolated UI tests passed with an injected test key. Rebuilding with `CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-` opened the sample workspace on iPhone (`artifacts/working-iphone-xcode-signed.png`). The packaged Mac app also opened its sample Recaps workspace. Final iPad normal-launch verification remains pending.
 
@@ -76,8 +79,21 @@ Counts of product areas at the current branch checkpoint. Source: tests, `docs/F
 3. Complete web live conversations/sending, media, and remaining final-design behavior.
 4. Keep account linking, physical signing, and real service traffic explicitly separate from fixture/sample evidence.
 
+## Release onboarding and clean workspace requirements
+
+User requirement, October 25: remove sample data from the final user experience and provide friendly onboarding that follows the final Figma design. This is required work, not marked complete.
+
+- Fresh release install contains no fictional chats, people, agreements, recaps, or sample photos. Remove the enabled `-demo` argument from the release/distribution path; fixtures may remain in tests or an explicitly separate developer demo workspace. Never remove real user records as part of sample cleanup.
+- Follow the Figma sequence: [Welcome](https://www.figma.com/design/10XdD87FnyxKWFoeF0zogy/Relay?node-id=7-5634), [Connections](https://www.figma.com/design/10XdD87FnyxKWFoeF0zogy/Relay?node-id=7-5692), [Choose Chats](https://www.figma.com/design/10XdD87FnyxKWFoeF0zogy/Relay?node-id=7-5767), and [Preferences](https://www.figma.com/design/10XdD87FnyxKWFoeF0zogy/Relay?node-id=7-5862). The final Figma design remains the visual source across iPhone, iPad, Mac, and web; this requirement does not imply the current screens match it completely.
+- New/existing-account entry points, actual service linking, searchable chat opt-in, preference persistence, and Set Up Later must work. Figma’s optional sample-exploration copy must be omitted from the normal release flow to honor the user's clean-workspace requirement.
+- Keep setup brief and resumable. Explain local message storage and request system permissions when the related feature is used. Every live chat starts off; review is required before saving suggestions or sending replies. No large model download may block entry.
+- Use the established warm background, maroon accent, semantic dark colors, rounded cards, system controls, and adaptive navigation. Verify against Figma renders on all four platforms, including large text, VoiceOver, keyboard input, and empty/error/reconnect states.
+- Required evidence: fresh install starts onboarding without samples; skipping lands in a truthful empty state; completion and relaunch retain preferences; connecting real data never mixes in fixtures; returning users are not forced through setup again. First live-message ingestion must work from this clean workspace.
+
+Figma was re-read October 25 (session `3d038742-4354-47c5-8f3f-e35e9a3d285f`), including the Welcome design context and screenshot. Apple onboarding guidance was also checked. Implementation and visual acceptance remain pending.
+
 ## Checkpoint and review
 
-Implementation checkpoint: `4a7d554` on `codex/account-security`, pushed to GitHub with [draft PR #2](https://github.com/Jeelo-byte/Relay/pull/2). Both web and Apple CI jobs passed in run `40170716006`. Local live tests remain separate from CI, which skips external-service opt-ins.
+Security implementation checkpoint: `4a7d554` on `codex/account-security`, pushed to GitHub with [draft PR #2](https://github.com/Jeelo-byte/Relay/pull/2). Both web and Apple CI jobs passed in run `40170716006`. Local live tests remain separate from CI, which skips external-service opt-ins.
 
 This tracker is the current evidence summary. `docs/STATUS.md` now points here; historical verification documents describe their own earlier checkpoints. The product is not yet complete.
