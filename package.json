@@ -5,16 +5,19 @@
   "scripts": {
     "dev": "next dev apps/web --hostname 0.0.0.0",
     "build": "next build apps/web",
-    "test": "node --test packages/normalize/normalize.test.mjs backend/api.test.mjs apps/web/lib/crypto.test.mjs apps/web/lib/matrix.test.mjs scripts/host-gateway.test.mjs",
+    "test": "node --test packages/normalize/normalize.test.mjs backend/api.test.mjs backend/pairing.test.mjs apps/web/lib/pairing.test.mjs apps/web/lib/crypto.test.mjs apps/web/lib/matrix.test.mjs scripts/host-gateway.test.mjs",
     "normalize": "esbuild packages/normalize/index.ts --bundle --format=iife --global-name=RelayNormalize --target=es2020 --outfile=apple/RelayKit/Sources/RelayKit/Resources/normalize.js",
     "start": "next start apps/web --hostname 0.0.0.0",
     "messages:status": "bash scripts/live-docker.sh ps",
-    "messages:start": "bash scripts/live-docker.sh --profile bridges up -d synapse element whatsapp"
+    "messages:start": "bash scripts/live-docker.sh --profile bridges up -d synapse element whatsapp",
+    "test:pairing:web": "node scripts/check-device-pairing.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "jsqr": "^1.4.0",
     "libsodium-wrappers-sumo": "0.7.15",
     "next": "^16.0.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zxcvbn": "^4.4.2"

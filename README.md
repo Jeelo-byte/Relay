@@ -32,7 +32,7 @@ The backend needs `DATABASE_URL` and `PRELOGIN_HMAC_SECRET` in a local, ignored 
 
 ## Local website and message forwarding
 
-Run `npm run dev` and open **http://localhost:3000** for the landing page. Unlock the workspace at **http://localhost:3000/workspace** with the same Relay account used in the native app to sync encrypted agreements and recaps. Open **Messages → Live Chats** to connect the existing Matrix server and include chats for this browser session. Live chat refresh and confirmed replies use that separate message connection.
+Run `npm run dev` and open **http://localhost:3000** for the landing page. Open **http://localhost:3000/workspace** and pair from an unlocked device using **Settings → Devices → Pair a Device**, or use the same account handle and passphrase. [Device pairing](docs/DEVICE-PAIRING.md) is the default connection path; phones need a reachable HTTPS server address. Open **Messages → Live Chats** to connect the existing Matrix server and include chats for this browser session. Live chat refresh and confirmed replies use that separate message connection.
 
 Start Docker Desktop, then use `npm run messages:status` and `npm run messages:start` for the configured Mac services. See [website, sync, and Docker setup](docs/WEB-SETUP.md) for exact commands, pairing, account differences, privacy, and access from other devices. The same guidance is on the website at `/docs`. Nothing is published online by these commands.
 

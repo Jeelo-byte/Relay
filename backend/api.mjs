@@ -258,6 +258,63 @@ export async function handleAPI(request) {
         })),
       });
     }
+    const pairingRoute = path.match(/^pairings\/([0-9a-f-]+)(?:\/(join|claim|cancel|approve))?$/i);
+    if (pairingRoute && !uuid(pairingRoute[1])) fail(400, "bad_request", "Invalid pairing code.");
+    // The scanned secret never reaches the API: only its hash and an encrypted DEK.
+    // A separate, unshared poll secret binds redemption to the device that joined.
+    if (pairingRoute && method === "POST" && ["join", "claim", "cancel"].includes(pairingRoute[2])) {
+      const [, id, action] = pairingRoute;
+      const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "local";
+      await limit(hash(Buffer.from(ip)).toString("hex") + ":pairing:" + action, action === "join" ? 30 : 1000, 600);
+      if (action === "join") {
+        if (!validDevice(body.device) || decode(body.key_hash).length !== 32 || decode(body.poll_hash).length !== 32)
+          fail(400, "bad_request", "Invalid pairing request.");
+        const rows = await sql`UPDATE device_pairings p SET target_device_id=${body.device.device_id},
+          target_priority=${body.device.priority},poll_hash=${bytea(decode(body.poll_hash))}
+          WHERE pairing_id=${id} AND key_hash=${bytea(decode(body.key_hash))} AND expires_at>now()
+            AND target_device_id IS NULL
+            AND NOT EXISTS (SELECT 1 FROM devices WHERE device_id=${body.device.device_id})
+            AND EXISTS (SELECT 1 FROM sessions s JOIN devices d USING(device_id) JOIN accounts a ON a.account_id=s.account_id
+              WHERE s.token_hash=p.creator_session_hash AND s.expires_at>now() AND d.revoked_at IS NULL AND a.auth_verifier=p.auth_verifier)
+          RETURNING expires_at`;
+        if (!rows.length) fail(410, "pairing_unavailable", "This code expired or was already scanned. Show a new code on your other device.");
+        return respond({ state: "waiting", expires_at: rows[0].expires_at });
+      }
+      if (decode(body.poll_key).length !== 32) fail(400, "bad_request", "Invalid pairing request.");
+      const proof = bytea(hash(decode(body.poll_key)));
+      if (action === "cancel") {
+        await sql`DELETE FROM device_pairings WHERE pairing_id=${id} AND poll_hash=${proof}`;
+        return respond(null, 204);
+      }
+      const freshToken = randomBytes(32).toString("base64url");
+      // Consume once and mint the device/session in one statement. Lock the account
+      // as sign-in does so recovery/credential changes cannot revive old approval.
+      const rows = await sql`WITH authorized AS (
+        SELECT p.*,a.handle FROM accounts a JOIN device_pairings p USING(account_id)
+        JOIN sessions s ON s.token_hash=p.creator_session_hash JOIN devices d ON d.device_id=s.device_id
+        WHERE p.pairing_id=${id} AND p.poll_hash=${proof} AND p.expires_at>now() AND p.approved
+          AND s.expires_at>now() AND d.revoked_at IS NULL AND a.auth_verifier=p.auth_verifier
+          AND NOT EXISTS (SELECT 1 FROM devices WHERE device_id=p.target_device_id)
+        FOR UPDATE OF a,p
+      ), consumed AS (
+        DELETE FROM device_pairings WHERE pairing_id IN (SELECT pairing_id FROM authorized) RETURNING pairing_id
+      ), device AS (
+        INSERT INTO devices(device_id,account_id,priority,last_seen_at)
+        SELECT target_device_id,account_id,target_priority,now() FROM authorized
+        WHERE pairing_id IN (SELECT pairing_id FROM consumed) RETURNING device_id,account_id
+      ), fresh AS (
+        INSERT INTO sessions(token_hash,account_id,device_id,expires_at)
+        SELECT ${bytea(hash(Buffer.from(freshToken)))},account_id,device_id,now()+interval '30 days' FROM device RETURNING account_id
+      ) SELECT a.account_id,a.handle,a.encrypted_dek FROM authorized a JOIN fresh USING(account_id)`;
+      if (rows.length) return respond({ state: "paired", token: freshToken, account_id: rows[0].account_id,
+        handle: rows[0].handle, encrypted_dek: Buffer.from(rows[0].encrypted_dek).toString("base64url") });
+      const [pending] = await sql`SELECT p.pairing_id FROM device_pairings p JOIN sessions s ON s.token_hash=p.creator_session_hash
+        JOIN devices d ON d.device_id=s.device_id JOIN accounts a ON a.account_id=p.account_id
+        WHERE pairing_id=${id} AND poll_hash=${proof} AND p.expires_at>now() AND s.expires_at>now()
+          AND d.revoked_at IS NULL AND a.auth_verifier=p.auth_verifier`;
+      if (!pending) fail(410, "pairing_unavailable", "Pairing expired, was cancelled, or has finished. Scan a new code.");
+      return respond({ state: "waiting" });
+    }
     const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
     if (!token) fail(401, "unauthorized", "Unlock Relay to continue.");
     const [session] =
@@ -271,6 +328,42 @@ export async function handleAPI(request) {
     if (path === "sessions/current" && method === "DELETE") {
       await sql`DELETE FROM sessions WHERE token_hash=${bytea(hash(Buffer.from(token)))}`;
       return respond(null, 204);
+    }
+    if (path === "pairings" && method === "POST") {
+      await limit(account + ":pairing-create", 30, 3600);
+      if (!uuid(body.pairing_id) || decode(body.key_hash).length !== 32 || decode(body.encrypted_dek).length !== 60)
+        fail(400, "bad_request", "Invalid pairing code.");
+      await sql`DELETE FROM device_pairings WHERE expires_at<=now()`;
+      const [created] = await sql`INSERT INTO device_pairings(pairing_id,account_id,creator_session_hash,auth_verifier,key_hash,encrypted_dek)
+        SELECT ${body.pairing_id},a.account_id,s.token_hash,a.auth_verifier,${bytea(decode(body.key_hash))},${bytea(decode(body.encrypted_dek))}
+        FROM accounts a JOIN sessions s USING(account_id) JOIN devices d USING(device_id)
+        WHERE a.account_id=${account} AND s.token_hash=${bytea(hash(Buffer.from(token)))} AND s.expires_at>now() AND d.revoked_at IS NULL
+        RETURNING expires_at`;
+      if (!created) fail(401, "unauthorized", "Unlock Relay again to pair a device.");
+      return respond({ expires_at: created.expires_at }, 201);
+    }
+    if (pairingRoute) {
+      const [, id, action] = pairingRoute;
+      const [pair] = await sql`SELECT p.target_device_id,p.target_priority,p.approved,p.expires_at FROM device_pairings p
+        JOIN accounts a USING(account_id) WHERE p.pairing_id=${id} AND p.account_id=${account}
+          AND p.creator_session_hash=${bytea(hash(Buffer.from(token)))} AND p.expires_at>now() AND p.auth_verifier=a.auth_verifier`;
+      if (!pair) fail(410, "pairing_unavailable", "This code has expired or pairing has finished. Show a new code to continue.");
+      if (method === "GET" && !action) return respond(pair);
+      if (method === "DELETE" && !action) {
+        await sql`DELETE FROM device_pairings WHERE pairing_id=${id} AND account_id=${account}`;
+        return respond(null, 204);
+      }
+      if (method === "POST" && action === "approve") {
+        if (!uuid(body.device_id)) fail(400, "bad_request", "Choose the device to pair.");
+        const rows = await sql`UPDATE device_pairings p SET approved=true
+          WHERE pairing_id=${id} AND account_id=${account} AND target_device_id=${body.device_id} AND expires_at>now()
+            AND EXISTS (SELECT 1 FROM sessions s JOIN devices d USING(device_id) JOIN accounts a ON a.account_id=s.account_id
+              WHERE s.token_hash=p.creator_session_hash AND s.token_hash=${bytea(hash(Buffer.from(token)))}
+                AND s.expires_at>now() AND d.revoked_at IS NULL AND a.auth_verifier=p.auth_verifier)
+          RETURNING pairing_id`;
+        if (!rows.length) fail(410, "pairing_unavailable", "That device is no longer waiting. Show a new code.");
+        return respond(null, 204);
+      }
     }
     if (path === "devices" && method === "GET") {
       const devices = await sql`SELECT device_id,priority,created_at,last_seen_at,revoked_at FROM devices WHERE account_id=${account} ORDER BY created_at`;

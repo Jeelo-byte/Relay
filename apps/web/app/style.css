@@ -601,3 +601,12 @@ a.landing-cta:focus-visible { outline: 3px solid #b45555; outline-offset: 3px; }
   .landing-sheet { padding: 18px 16px 6px; }
   .landing-hero h1 { letter-spacing: -0.8px; }
 }
+.pairing-panel { padding: 24px; margin-block: 20px; border: 1px solid var(--line, #777); border-radius: 16px; max-width: 620px; }
+.pairing-panel h2 { margin-top: 0; }
+.pairing-panel p { line-height: 1.5; }
+.pairing-panel button { min-height: 44px; margin: 8px 8px 8px 0; }
+.pairing-panel input { width: 100%; min-width: 0; box-sizing: border-box; }
+.pairing-panel summary { cursor: pointer; padding-block: 12px; }
+.pairing-qr { display: block; max-width: 100%; height: auto; background: white; border-radius: 8px; }
+.pairing-check { font-family: ui-monospace, monospace; font-size: 1.4em; letter-spacing: .15em; }
+.pairing-camera { width: 100%; max-height: 320px; object-fit: cover; border-radius: 12px; }
