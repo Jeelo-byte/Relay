@@ -34,6 +34,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Relay
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_NSCameraUsageDescription: Relay does not use the camera.
+        INFOPLIST_KEY_NSContactsUsageDescription: Show saved contact names for iMessage conversations using names, phone numbers, and email addresses on this Mac. Your address book is not uploaded.
         INFOPLIST_KEY_NSAppleEventsUsageDescription: Send only iMessage drafts you review and confirm through Messages on this Mac.
         INFOPLIST_KEY_NSFaceIDUsageDescription: Unlock your private Relay agreements.
         INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES

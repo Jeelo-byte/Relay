@@ -58,14 +58,14 @@ struct ConversationView: View {
           if let latest = messages.last(where: { !$0.sender.is_self && !$0.redacted }) {
             Text("REPLY DRAFT · REVIEW BEFORE SENDING").font(.caption2.weight(.semibold)).foregroundStyle(RelayTheme.muted)
             Button("Could you confirm the next step?") { draft = "Could you confirm the next step?" }.buttonStyle(.bordered)
-              .help("An editable template in response to \(latest.sender.display_name_snapshot). It does not make a commitment.")
+              .help("An editable template in response to \(store.displayName(for: latest.sender)). It does not make a commitment.")
           }
         }.padding(20).frame(maxWidth: 900, alignment: .leading).frame(maxWidth: .infinity)
       }.onAppear { reveal(using: proxy) }
         .onChange(of: store.highlightedMessageID) { _, _ in reveal(using: proxy) }
         .onChange(of: messages.count) { _, _ in if let last = messages.last { proxy.scrollTo(last.id, anchor: .bottom) } }
     }.background(desktopEmbedded ? RelayTheme.surface : RelayTheme.background)
-      .modifier(ConversationChrome(embedded: desktopEmbedded, title: room?.name ?? "Conversation", query: $query))
+      .modifier(ConversationChrome(embedded: desktopEmbedded, title: room.map { store.displayName(for: $0) } ?? "Conversation", query: $query))
       .safeAreaInset(edge: .bottom) { composer }
       .sheet(isPresented: $confirmSend) { reviewSendView }
       .onAppear {
@@ -91,7 +91,7 @@ struct ConversationView: View {
           RelayPanel {
             VStack(alignment: .leading, spacing: 12) {
               Text(draft).font(.title3).textSelection(.enabled)
-              Text("To: \(room?.name ?? "Conversation")").font(.caption).foregroundStyle(RelayTheme.muted)
+              Text("To: \(room.map { store.displayName(for: $0) } ?? "Conversation")").font(.caption).foregroundStyle(RelayTheme.muted)
             }
           }
           if !store.isDemo && roomID.hasPrefix("imessage:") {
@@ -143,13 +143,13 @@ struct ConversationView: View {
   private func bubble(_ message: ChatMessage) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
-        Text(message.sender.display_name_snapshot).font(.caption.weight(.semibold)).foregroundStyle(RelayTheme.accentText)
+        Text(store.displayName(for: message.sender)).font(.caption.weight(.semibold)).foregroundStyle(RelayTheme.accentText)
         Spacer()
         Text(timestamp(message).formatted(date: .omitted, time: .shortened)).font(.caption2).foregroundStyle(RelayTheme.muted)
       }
       if let reply = message.reply_to_event_id {
         let original = store.messages.first { $0.room_id == roomID && $0.event_id == reply && !$0.redacted }
-        Text(original.map { "Reply to \($0.sender.display_name_snapshot): \($0.text)" } ?? "Reply · Original message unavailable")
+        Text(original.map { "Reply to \(store.displayName(for: $0.sender)): \($0.text)" } ?? "Reply · Original message unavailable")
           .font(.caption).foregroundStyle(RelayTheme.muted).lineLimit(2)
       }
       Text(message.redacted ? "Message deleted" : message.text).font(desktopEmbedded ? .system(size: 13) : .body)
@@ -182,7 +182,7 @@ private struct MessageImageView: View {
       if let image {
         image.resizable().scaledToFit().frame(maxWidth: 480, maxHeight: 360, alignment: .leading)
           .clipShape(RoundedRectangle(cornerRadius: 10))
-          .accessibilityLabel("Photo from \(message.sender.display_name_snapshot)")
+          .accessibilityLabel("Photo from \(store.displayName(for: message.sender))")
           .accessibilityIdentifier("message-image-preview")
       } else if let failure {
         VStack(alignment: .leading, spacing: 8) {

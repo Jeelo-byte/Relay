@@ -1,6 +1,7 @@
 #if os(macOS)
 import RelayKit
 import SwiftUI
+import AppKit
 
 /// Desktop composition follows the macOS Figma frames. Shared detail, editor,
 /// consent, and account screens retain their existing behavior.
@@ -16,7 +17,7 @@ struct MacWorkspaceView: View {
   @State private var service: MessagingService?
   @State private var selectedRoom: String?
   @FocusState private var searchFocused: Bool
-  private var conversations: [ChatRoom] { store.rooms.filter(\.opted_in).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
+  private var conversations: [ChatRoom] { store.rooms.filter(\.opted_in).sorted { store.displayName(for: $0).localizedStandardCompare(store.displayName(for: $1)) == .orderedAscending } }
   var body: some View {
     HStack(spacing: 0) {
       sidebar.frame(width: 240)
@@ -94,11 +95,11 @@ struct MacWorkspaceView: View {
       Text("YOUR CONVERSATIONS").font(.system(size: 9, weight: .medium)).foregroundStyle(RelayTheme.muted).padding(.top, 8)
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-          ForEach(conversations.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }) { room in
+          ForEach(conversations.filter { search.isEmpty || store.contactNames.matches($0, query: search) }) { room in
             Button { openConversation(room.id) } label: {
               HStack(spacing: 9) {
-                Avatar(name: room.name, size: 27)
-                Text(room.name).font(.system(size: 11)).lineLimit(1)
+                Avatar(name: store.displayName(for: room), size: 27)
+                Text(store.displayName(for: room)).font(.system(size: 11)).lineLimit(1)
               }.frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain)
           }
@@ -219,9 +220,9 @@ private struct MacRecapsView: View {
         RelayPanel {
           VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 9) {
-              Avatar(name: recap.room_name, size: 30)
+              Avatar(name: store.displayName(forRoomID: recap.room_id, fallback: recap.room_name), size: 30)
               VStack(alignment: .leading, spacing: 3) {
-                Button(recap.room_name) { room = recap.room_id }.font(.system(size: 14, weight: .semibold)).buttonStyle(.plain)
+                Button(store.displayName(forRoomID: recap.room_id, fallback: recap.room_name)) { room = recap.room_id }.font(.system(size: 14, weight: .semibold)).buttonStyle(.plain)
                 Text("\(recap.service?.name ?? recap.network.label) · \(recap.message_count) messages").font(.system(size: 10)).foregroundStyle(RelayTheme.muted)
               }
               Spacer()
@@ -262,7 +263,7 @@ private struct MacRecapsView: View {
               VStack(alignment: .leading, spacing: 6) {
                 Text(agreement.title).font(.system(size: 14, weight: .semibold))
                 Text(agreement.obligations.first?.due?.formatted ?? "No date stated").font(.system(size: 12)).foregroundStyle(RelayTheme.muted)
-                SourceBadge(title: agreement.review_state == .suggested ? "Review suggestion" : agreement.counterparty?.display_name_snapshot ?? "Added by you")
+                SourceBadge(title: agreement.review_state == .suggested ? "Review suggestion" : agreement.counterparty.map { store.displayName(for: $0) } ?? "Added by you")
               }
             }
           }
@@ -316,7 +317,7 @@ private struct MacEventsView: View {
                     Image(systemName: "waterbottle").foregroundStyle(RelayTheme.accentText)
                     VStack(alignment: .leading, spacing: 5) {
                       Text(agreement.title).fontWeight(.semibold)
-                      Text(agreement.counterparty?.display_name_snapshot ?? "Added by you").font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
+                      Text(agreement.counterparty.map { store.displayName(for: $0) } ?? "Added by you").font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
                     }
                     Spacer()
                     Image(systemName: "chevron.right").font(.system(size: 10))
@@ -368,7 +369,7 @@ private struct MacEventsView: View {
     return first.formatted(.dateTime.month(.abbreviated).day()) + " – " + last.formatted(.dateTime.month(.abbreviated).day())
   }
   private func moveWeek(_ days: Int) { week = Calendar.current.date(byAdding: .day, value: days, to: week) ?? week }
-  private func source(_ agreement: Agreement) -> String { agreement.source_room_ids.compactMap { id in store.rooms.first { $0.id == id }?.name }.first ?? "Added by you" }
+  private func source(_ agreement: Agreement) -> String { agreement.source_room_ids.compactMap { id in store.rooms.first { $0.id == id }.map { store.displayName(for: $0) } }.first ?? "Added by you" }
 }
 
 private struct MacMessagesView: View {
@@ -378,7 +379,7 @@ private struct MacMessagesView: View {
   var onCreate: (Agreement) -> Void
   var onConnect: () -> Void
   @State private var query = ""
-  private var rooms: [ChatRoom] { store.rooms.filter { room in room.opted_in && (service == nil || room.service == service || room.network == service?.network) && (query.isEmpty || room.name.localizedCaseInsensitiveContains(query) || store.messages.contains { $0.room_id == room.id && !$0.redacted && $0.text.localizedCaseInsensitiveContains(query) }) }.sorted { (latest($0)?.ts ?? 0) > (latest($1)?.ts ?? 0) } }
+  private var rooms: [ChatRoom] { store.rooms.filter { room in room.opted_in && (service == nil || room.service == service || room.network == service?.network) && (query.isEmpty || store.contactNames.matches(room, query: query) || store.messages.contains { $0.room_id == room.id && !$0.redacted && $0.text.localizedCaseInsensitiveContains(query) }) }.sorted { (latest($0)?.ts ?? 0) > (latest($1)?.ts ?? 0) } }
   private var current: ChatRoom? { rooms.first { $0.id == selectedRoom } ?? rooms.first }
   private func latest(_ room: ChatRoom) -> ChatMessage? { store.messages.filter { $0.room_id == room.id }.max { $0.ts < $1.ts } }
   var body: some View {
@@ -391,14 +392,14 @@ private struct MacMessagesView: View {
               ForEach(rooms) { room in
                 Button { selectedRoom = room.id } label: {
                   HStack(spacing: 12) {
-                    Avatar(name: room.name, size: 42)
+                    Avatar(name: store.displayName(for: room), size: 42)
                     VStack(alignment: .leading, spacing: 7) {
                       HStack {
-                        Text(room.name).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                        Text(store.displayName(for: room)).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                         Spacer(minLength: 4)
                         if let message = latest(room) { Text(Date(timeIntervalSince1970: Double(message.ts)/1000).formatted(date: .omitted, time: .shortened)).font(.system(size: 9)).foregroundStyle(RelayTheme.muted) }
                       }
-                      Text(latest(room).map { $0.redacted ? "Message deleted" : "\($0.sender.display_name_snapshot): \($0.text)" } ?? "No imported messages yet").font(.system(size: 12)).foregroundStyle(RelayTheme.muted).lineLimit(1)
+                      Text(latest(room).map { $0.redacted ? "Message deleted" : "\(store.displayName(for: $0.sender)): \($0.text)" } ?? "No imported messages yet").font(.system(size: 12)).foregroundStyle(RelayTheme.muted).lineLimit(1)
                       Text(room.service?.name ?? room.network.label).font(.system(size: 10)).foregroundStyle(RelayTheme.accentText)
                     }
                   }.padding(12).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
@@ -414,7 +415,7 @@ private struct MacMessagesView: View {
         if let room = current {
           VStack(alignment: .leading, spacing: 0) {
             HStack {
-              Text(room.name).font(.system(size: 18, weight: .bold))
+              Text(store.displayName(for: room)).font(.system(size: 18, weight: .bold))
               Spacer()
               SourceBadge(title: room.service?.name ?? room.network.label)
             }.padding(20)
@@ -437,7 +438,7 @@ private struct MacPeopleView: View {
   @State private var selected: String?
   private var parties: [Party] {
     let ids = Set(store.rooms.filter(\.opted_in).map(\.id))
-    return Dictionary((store.visible.flatMap(\.parties) + store.messages.filter { ids.contains($0.room_id) && !$0.redacted }.map(\.sender)).filter { !$0.is_self }.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }).values.filter { query.isEmpty || $0.display_name_snapshot.localizedCaseInsensitiveContains(query) }.sorted { $0.display_name_snapshot < $1.display_name_snapshot }
+    return Dictionary((store.visible.flatMap(\.parties) + store.messages.filter { ids.contains($0.room_id) && !$0.redacted }.map(\.sender)).filter { !$0.is_self }.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }).values.map { party in var value = party; value.display_name_snapshot = store.displayName(for: party); return value }.filter { query.isEmpty || $0.display_name_snapshot.localizedCaseInsensitiveContains(query) }.sorted { $0.display_name_snapshot < $1.display_name_snapshot }
   }
   var body: some View {
     GeometryReader { geometry in
@@ -562,6 +563,127 @@ struct MacPreferencesView: View {
         }.background(RelayTheme.background)
       }.id(selection)
     }.font(.system(size: 13)).foregroundStyle(RelayTheme.ink)
+  }
+}
+
+/// A bounded chooser keeps search and selection controls visible while chats scroll.
+struct MacConversationPicker: View {
+  @EnvironmentObject private var store: RelayStore
+  let rooms: [ChatRoom]
+  var title = "Choose conversations"
+  var emptyMessage = "Connect an app or refresh your conversations to get started."
+  var onSelect: (ChatRoom, Bool) async -> Void
+  @State private var query = ""
+  @State private var selectedOnly = false
+  @State private var pending = Set<String>()
+  private var filtered: [ChatRoom] {
+    rooms.filter { (!selectedOnly || $0.opted_in) && store.contactNames.matches($0, query: query) }
+      .sorted { store.displayName(for: $0).localizedStandardCompare(store.displayName(for: $1)) == .orderedAscending }
+  }
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack(alignment: .firstTextBaseline) {
+        Text(title).font(.system(size: 19, weight: .bold))
+        Spacer()
+        Text("\(rooms.filter(\.opted_in).count) included").font(.system(size: 12)).foregroundStyle(RelayTheme.muted)
+      }
+      Text("Choose the conversations Relay can include. You can pause any conversation here.")
+        .font(.system(size: 12)).foregroundStyle(RelayTheme.muted)
+      MacSearchField(text: $query, prompt: "Search names, numbers, or conversations")
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(RelayTheme.line))
+        .accessibilityIdentifier("conversation-picker-search")
+      HStack(spacing: 8) {
+        filterButton("All conversations", selected: !selectedOnly) { selectedOnly = false }
+        filterButton("Included", selected: selectedOnly) { selectedOnly = true }
+        Spacer()
+        Text("\(filtered.count) shown").font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
+      }
+      ScrollView {
+        LazyVStack(spacing: 8) {
+          ForEach(filtered) { room in conversationRow(room) }
+          if filtered.isEmpty {
+            VStack(spacing: 10) {
+              Image(systemName: query.isEmpty ? "bubble.left.and.bubble.right" : "magnifyingglass").font(.system(size: 26, weight: .light))
+              Text(query.isEmpty ? selectedOnly ? "No conversations included yet" : "No conversations available" : "No matching conversations")
+                .font(.system(size: 14, weight: .semibold))
+              Text(query.isEmpty ? emptyMessage : "Try a different name or number, or clear the search.")
+                .font(.system(size: 12)).multilineTextAlignment(.center)
+              if !query.isEmpty { Button("Clear Search") { query = "" }.buttonStyle(.borderless) }
+            }.foregroundStyle(RelayTheme.muted).frame(maxWidth: .infinity).padding(.vertical, 56).padding(.horizontal, 12)
+          }
+        }.padding(2)
+      }.frame(height: 280).scrollIndicators(.visible)
+        .accessibilityIdentifier("conversation-picker-list")
+    }
+  }
+  private func filterButton(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Text(title).font(.system(size: 11, weight: .medium)).padding(.horizontal, 12).padding(.vertical, 7)
+        .foregroundStyle(selected ? RelayTheme.accentText : RelayTheme.muted)
+        .background(selected ? RelayTheme.selection : .clear, in: Capsule())
+    }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
+  }
+  private func conversationRow(_ room: ChatRoom) -> some View {
+    let name = store.displayName(for: room)
+    return Button {
+      guard !pending.contains(room.id) else { return }
+      pending.insert(room.id)
+      Task { await onSelect(room, !room.opted_in); pending.remove(room.id) }
+    } label: {
+      HStack(spacing: 12) {
+        Avatar(name: name, size: 36)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(name).font(.system(size: 13, weight: .medium)).lineLimit(1).help(name)
+          Text(detail(room, name: name)).font(.system(size: 11)).foregroundStyle(RelayTheme.muted).lineLimit(1)
+        }
+        Spacer(minLength: 8)
+        if pending.contains(room.id) { ProgressView().controlSize(.small) }
+        else {
+          Image(systemName: room.opted_in ? "checkmark.circle.fill" : "plus.circle")
+            .font(.system(size: 21, weight: .light)).foregroundStyle(room.opted_in ? RelayTheme.accentText : RelayTheme.muted)
+        }
+      }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+        .background(room.opted_in ? RelayTheme.selection.opacity(0.45) : RelayTheme.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(room.opted_in ? RelayTheme.accentText.opacity(0.35) : RelayTheme.line))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+    }.buttonStyle(.plain).disabled(pending.contains(room.id))
+      .accessibilityLabel(name + ", " + (room.opted_in ? "Included" : "Not included"))
+      .accessibilityHint(room.opted_in ? "Pause this conversation" : "Include this conversation")
+      .accessibilityAddTraits(room.opted_in ? .isSelected : [])
+  }
+  private func detail(_ room: ChatRoom, name: String) -> String {
+    let service = room.service?.name ?? room.network.label
+    if let handles = room.participant_handles, handles.count == 1, handles[0] != name { return service + " · " + handles[0] }
+    return service + (room.member_count > 2 ? " · \(room.member_count) people" : "")
+  }
+}
+
+struct MacContactNamesCard: View {
+  @EnvironmentObject private var store: RelayStore
+  var body: some View {
+    RelayPanel {
+      VStack(alignment: .leading, spacing: 12) {
+        Label("Names from your contacts", systemImage: "person.crop.rectangle.stack")
+          .font(.system(size: 14, weight: .semibold)).foregroundStyle(RelayTheme.accentText)
+        Text(description).font(.system(size: 12)).foregroundStyle(RelayTheme.muted).fixedSize(horizontal: false, vertical: true)
+        if let error = store.contactNameError { Text(error).font(.caption).foregroundStyle(RelayTheme.danger) }
+        if store.loadingContactNames { ProgressView().controlSize(.small) }
+        else if store.contactNameAccess == .denied || store.contactNameAccess == .restricted {
+          Button("Contacts Settings") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts")!) }.buttonStyle(.bordered)
+        } else {
+          Button(store.contactNameAccess == .available ? "Refresh Names" : "Use Contact Names") {
+            Task { await store.refreshContactNames(requestAccess: true) }
+          }.buttonStyle(.bordered).disabled(store.isDemo)
+        }
+      }
+    }.task { await store.refreshContactNames() }
+  }
+  private var description: String {
+    switch store.contactNameAccess {
+    case .available: return "Saved names replace matching iMessage numbers and email addresses. Your address book stays on this Mac."
+    case .denied, .restricted: return "Contacts access is off. You can allow Relay in macOS Settings, or keep choosing conversations by number."
+    default: return "Use saved names for iMessage conversations. Relay matches contacts on this Mac and never uploads your address book."
+    }
   }
 }
 

@@ -24,3 +24,12 @@ On first use, macOS asks whether Relay may control Messages. Approve that prompt
 A successful handoff is shown as submitted to Messages; recipient delivery must be checked in Messages. The native adapter has no idempotent transaction API. Relay therefore persists a dispatch marker before submission, blocks retry after timeouts or uncertain outcomes, and reconciles against actual self-authored messages. Definitive permission/target errors preserve a retryable draft. Check Messages before discarding an uncertain draft and starting another.
 
 Sending verification: fixed AppleScript compiles against the installed Messages dictionary; tests cover opaque text parameters, exact existing-chat targeting, uncertain-request retry blocking, and one-to-one outbox reconciliation across reload. No external iMessage was sent by automated tests. A user-confirmed live send remains to be checked.
+
+
+### Conversation names and selection
+
+On Mac, the conversation chooser has a fixed search field above a bounded, scrollable list. Search by conversation title, saved contact name, phone number, or email; use Included to review chosen conversations. Select a row to include or pause it. New conversations remain off until selected.
+
+Choose **Use Contact Names** to request macOS Contacts access. Relay fetches names, phone numbers, and email addresses through the public Contacts framework, builds an in-memory lookup on this Mac, and never uploads the address book. Contacts permission is optional: unknown, ambiguous, or unavailable contacts retain their identifiers. Existing group titles are preserved; unnamed groups use participant names where available. Phone matching uses exact normalized numbers and a US/Canada regional prefix rule rather than arbitrary suffix matching. Chat membership metadata is kept in the existing encrypted, local-only room cache. Display names never replace the stable conversation ID used for sending or change selected chats or cursors.
+
+Names are also used in the Mac conversation sidebar, message headers, sender labels, and People profiles. Saved evidence and agreement snapshots remain unchanged. Contacts changes refresh the in-memory index; locking or signing out clears it. Without Full Disk Access, previously cached chats remain searchable, but refreshing Messages membership metadata still requires that access.

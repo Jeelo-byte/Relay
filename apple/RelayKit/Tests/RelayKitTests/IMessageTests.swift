@@ -26,7 +26,13 @@ final class IMessageTests: XCTestCase {
         """)
     }
     let client = IMessageClient(path: path)
-    XCTAssertEqual(try client.discover().map(\.name).sorted(), ["Chosen", "Private"])
+    let discovered = try client.discover()
+    XCTAssertEqual(discovered.map(\.name).sorted(), ["Chosen", "Private"])
+    let chosen = try XCTUnwrap(discovered.first { $0.id == "imessage:1" })
+    XCTAssertEqual(chosen.native_display_name, "Chosen")
+    XCTAssertEqual(chosen.participant_handles, ["chosen@example.com"])
+    XCTAssertFalse(chosen.opted_in)
+    XCTAssertEqual(chosen.backfill_cursor, "1")
     let baseline = try client.latest(room: "imessage:1")
     let rich = NSArchiver.archivedData(withRootObject: NSAttributedString(string: "I will send the draft tomorrow"))
     try db.write { db in

@@ -19,7 +19,17 @@ public struct IMessageClient: Sendable {
 
   public func discover() throws -> [ChatRoom] {
     try read { db in
-      try Row.fetchAll(db, sql: """
+      // Conversation membership only; no message bodies are read during discovery.
+      var participants: [Int64: [String]] = [:]
+      for row in try Row.fetchAll(db, sql: """
+        SELECT j.chat_id, h.id FROM chat_handle_join j
+        JOIN handle h ON h.ROWID=j.handle_id JOIN chat c ON c.ROWID=j.chat_id
+        WHERE c.service_name='iMessage' ORDER BY j.chat_id,h.id
+        """) {
+        let id: Int64 = row["chat_id"]
+        if let handle: String = row["id"] { participants[id, default: []].append(handle) }
+      }
+      return try Row.fetchAll(db, sql: """
         SELECT c.ROWID AS chat_id, c.display_name, c.chat_identifier,
           (SELECT COUNT(*) FROM chat_handle_join h WHERE h.chat_id=c.ROWID) AS members,
           COALESCE((SELECT MAX(j.message_id) FROM chat_message_join j WHERE j.chat_id=c.ROWID),0) AS latest
@@ -31,6 +41,8 @@ public struct IMessageClient: Sendable {
           let identifier: String = row["chat_identifier"] ?? "iMessage conversation"
           var room = ChatRoom(id: Self.prefix + String(id),
             name: title.isEmpty ? identifier : title, network: .imessage)
+          room.participant_handles = Array(Set(participants[id] ?? [])).sorted()
+          room.native_display_name = title
           room.service = .imessage
           room.member_count = (row["members"] as Int? ?? 1) + 1
           room.backfill_cursor = String(row["latest"] as Int64? ?? 0)
