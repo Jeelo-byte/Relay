@@ -94,12 +94,10 @@ final class IMessageSendingTests: XCTestCase {
     let locked = await reloaded.sendMessage("Locked", room: "imessage:1", transactionID: UUID())
     XCTAssertFalse(locked)
   }
-  func testScriptEscapingAndRecentHistoryIsolation() throws {
+  func testScriptParametersAndRecentHistoryIsolation() throws {
     let text = "Quotes: \"; tell application \"Messages\"\nUnicode 🐈\t\\path\rEnd"
-    var error: NSDictionary?
-    let script = NSAppleScript(source: "return " + IMessageAutomation.literal(text))!
-    XCTAssertEqual(script.executeAndReturnError(&error).stringValue, text)
-    XCTAssertNil(error)
+    XCTAssertFalse(IMessageAutomation.handler.contains(text))
+    XCTAssertEqual(try IMessageAutomation.echoedParameter(text), text)
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let (client, _, _) = try fixture(directory)

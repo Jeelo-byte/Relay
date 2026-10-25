@@ -1,6 +1,6 @@
 # iMessage and contacts
 
-Relay on Mac reads chosen conversations from the local Messages database and sends reviewed text replies through Apple Messages. Sign in to Messages on the Mac first. The Messages database remains read-only; sending uses Messages’ AppleScript `send` command.
+Relay on Mac reads chosen conversations from the local Messages database and sends reviewed text replies through Apple Messages. Sign in to Messages on the Mac first. The Messages database remains read-only. Sending uses Messages’ AppleScript `send` command, with the chat id and text passed as Apple event parameters rather than inserted into the script.
 
 ## Connect and read
 
@@ -35,4 +35,4 @@ Linked profiles share one People entry and agreement list. Original sender IDs, 
 
 ## Verification
 
-Automated fixtures exercise selected-chat isolation, recent-history import, participant discovery, exact group/direct routing, actual-event deduplication, uncertain-send reconciliation across restart, locked/paused send rejection, AppleScript escaping, contact matching/ambiguity, vCard import, encrypted persistence, and link transfer/unlink behavior. Live delivery requires the user’s macOS privacy grants and a chosen test recipient; no real messages are sent by the automated tests.
+Automated fixtures exercise selected-chat isolation, recent-history import, participant discovery, exact group/direct routing, actual-event deduplication, uncertain-send reconciliation across restart, locked/paused send rejection, Apple event parameter handling, contact matching/ambiguity, vCard import, encrypted persistence, and link transfer/unlink behavior. Live delivery requires the user’s macOS privacy grants and a chosen test recipient; no real messages are sent by the automated tests.
