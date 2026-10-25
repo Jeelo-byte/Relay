@@ -10,6 +10,7 @@ public struct AccountSession: Codable, Sendable {
   public var dek: Data
   public var device_id: UUID
   public var baseURL: URL
+  public var offlineUnlock: OfflineUnlock? = nil
 }
 public struct Blob: Codable, Sendable {
   public var row_id: UUID
@@ -130,7 +131,8 @@ public final class APIClient {
     else { throw VaultError.invalidEnvelope }
     let dek = try RelayCrypto.unwrap(wrapped, kek: keys.kek, account: id)
     return AccountSession(
-      account_id: id, handle: handle, token: token, dek: dek, device_id: device, baseURL: baseURL)
+      account_id: id, handle: handle, token: token, dek: dek, device_id: device, baseURL: baseURL,
+      offlineUnlock: OfflineUnlock(salt: salt, wrappedKey: wrapped))
   }
   public func signup(handle: String, passphrase: String, device: UUID) async throws -> (
     AccountSession, String
@@ -163,7 +165,7 @@ public final class APIClient {
     return (
       AccountSession(
         account_id: account, handle: handle, token: token, dek: dek, device_id: device,
-        baseURL: baseURL), code
+        baseURL: baseURL, offlineUnlock: OfflineUnlock(salt: salt, wrappedKey: passWrap)), code
     )
   }
 }

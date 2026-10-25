@@ -19,7 +19,7 @@ struct IMessageConnectView: View {
     NavigationStack {
       Form {
         Section("iMessage on This Mac") {
-          Text("Relay reads selected conversations from Messages on this Mac. It sends iMessage drafts only after you review and confirm them.")
+          Text("Relay reads selected conversations and sends replies through the Messages app on this Mac. Every send is reviewed by you.")
           #if os(macOS)
           Text("Sign in to Messages first. In System Settings → Privacy & Security → Full Disk Access, add Relay and turn it on. Quit and reopen Relay after changing access.")
           Button("Open Full Disk Access Settings") {
@@ -37,14 +37,23 @@ struct IMessageConnectView: View {
           #endif
         }
         #if os(macOS)
+        Section("Sending Replies") {
+          Text("Open a chosen conversation in Messages, type a reply, choose Review Send, then Send Message. macOS asks to let Relay control Messages the first time. Enable it in Privacy & Security → Automation if needed.")
+          Button("Open Automation Settings") {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!)
+          }
+          Text("Messages records the outgoing text; check Apple Messages for delivery or read receipts. If a send is uncertain, Check Send Status checks it without resending.").font(.caption).foregroundStyle(.secondary)
+        }
         Section("Choose iMessage Conversations") {
           Text("Chats start off. Turning one on imports new messages from that point forward. Keep Relay open to refresh every 30 seconds. Message bodies and source quotes stay in Relay’s encrypted local storage.")
             .font(.caption).foregroundStyle(.secondary)
           ForEach(store.rooms.filter { $0.id.hasPrefix("imessage:") }) { room in
-            Toggle(room.name, isOn: Binding(
+            Toggle(store.roomName(for: room), isOn: Binding(
               get: { store.rooms.first { $0.id == room.id }?.opted_in ?? false },
               set: { value in Task { await store.setIMessageOptIn(room.id, value) } }))
           }
+          Text("To include earlier messages, import the most recent 100 messages from each chosen conversation.").font(.caption).foregroundStyle(.secondary)
+          Button("Import Recent Messages") { Task { await store.importRecentIMessages() } }
           Button("Sync Chosen iMessage Chats") { Task { await store.syncIMessages() } }
         }
         #endif
@@ -73,7 +82,7 @@ struct IMessageConnectView: View {
               Button(busy ? "Checking…" : "Refresh Conversations") {
                 busy = true; Task { await store.discoverIMessages(); busy = false }
               }.buttonStyle(.borderedProminent).disabled(busy)
-              Text("New messages appear after you include a conversation. Earlier history stays in Messages.")
+              Text("New messages appear after you include a conversation. Import Recent Messages adds up to 100 earlier messages from each chosen chat.")
                 .font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
             }
           }
@@ -85,6 +94,7 @@ struct IMessageConnectView: View {
               emptyMessage: "Refresh conversations to load your Messages chats.") { room, enabled in
               await store.setIMessageOptIn(room.id, enabled)
             }
+            Button("Import Recent Messages") { Task { await store.importRecentIMessages() } }.buttonStyle(.bordered)
             Button("Sync Chosen iMessage Chats") { Task { await store.syncIMessages() } }.buttonStyle(.bordered)
           }
         }.frame(maxWidth: .infinity)

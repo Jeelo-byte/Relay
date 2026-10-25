@@ -8,8 +8,8 @@ On iPhone the app opens into five places, in this order: **People**, **Events**,
 
 - **Recaps** groups a day of chats into cards you can filter by conversation and app. Optional local generation cites the source text. Received WhatsApp images preview in Messages on Mac.
 - **Events** is where money, borrowed things, and the week’s plans live. You create, edit, dismiss, restore, and complete agreements yourself. Recurring items wait for you to accept the next occurrence.
-- **Messages** brings chosen conversations together. Search stays on the device. Suggested replies are editable. Sending asks for confirmation, checks room encryption and consent, and records an encrypted outbox. iMessage on Mac stays read-only: Relay can copy a reply, not send it.
-- **People** is a contact-style directory of shared money, items, plans, and private notes. Notes are encrypted on the device and are not synced yet.
+- **Messages** brings chosen conversations together. Search stays on the device. Suggested replies are editable. Sending asks for confirmation, checks room encryption and consent, and records an encrypted outbox. iMessage on Mac reads selected chats and sends reviewed text replies through Apple Messages, with Full Disk Access and Automation permission.
+- **People** combines device-contact or vCard imports, manually added contacts, linked platform profiles, shared agreements, and private notes. Unique phone/email addresses match automatically; other identities can be linked or unlinked manually. Contacts and notes are encrypted on the device and are not synced yet.
 - **Settings** covers the workspace, connections, reminders, devices, and help. Due reminders stay private. Calendar drafts can be exported.
 
 Full chat text stays on the device and the local Matrix server. Neon stores authenticated ciphertext for derived records and short source excerpts.
@@ -30,12 +30,18 @@ The visual source for this pass is the [final product design](https://www.figma.
 
 The backend needs `DATABASE_URL` and `PRELOGIN_HMAC_SECRET` in a local, ignored environment file. Never put database credentials in an Apple target.
 
+## Local website and message forwarding
+
+Run `npm run dev` and open **http://localhost:3000** for the landing page. Unlock the workspace at **http://localhost:3000/workspace** with the same Relay account used in the native app to sync encrypted agreements and recaps. Open **Messages → Live Chats** to connect the existing Matrix server and include chats for this browser session. Live chat refresh and confirmed replies use that separate message connection.
+
+Start Docker Desktop, then use `npm run messages:status` and `npm run messages:start` for the configured Mac services. See [website, sync, and Docker setup](docs/WEB-SETUP.md) for exact commands, pairing, account differences, privacy, and access from other devices. The same guidance is on the website at `/docs`. Nothing is published online by these commands.
+
 ## Current checkpoint
 
-Native and web surfaces for the five destinations are in the tree, including recurrence review, reminder planning, calendar draft export, device listing, and passphrase-based device revocation. This is still a working checkpoint. Open work includes full web Matrix conversations and sending, carrying iMessage from the Mac to other devices, live photo handling, synced person notes, data-key rotation and offline unlock, and the remaining accessibility and device checks. See [implementation decisions](docs/DECISIONS.md) and the [feature checklist](docs/FEATURES.md). WhatsApp setup and troubleshooting are in [the setup guide](docs/WHATSAPP-SETUP.md), also available on the website at `/docs`. The new Figma onboarding flow is described in [guided onboarding](docs/ONBOARDING.md). Normal startup contains no sample workspace; stored records with explicit demo room IDs are removed while real and manually created records are retained. Test fixtures remain isolated. The original build plan is in [docs/BuildPlan-v5.txt](docs/BuildPlan-v5.txt).
+Native and web surfaces for the five destinations are in the tree, including recurrence review, reminder planning, calendar draft export, device listing, and passphrase-based device revocation. This is still a working checkpoint. The web now has a direct Matrix connection with per-chat inclusion, incoming text/photos, loaded-message search, and confirmed replies. Open work includes real-network outgoing delivery verification, carrying iMessage from the Mac to other devices, live photo handling, synced person notes, data-key rotation, and the remaining accessibility and device checks. Offline unlock is available after an online sign-in on that device. See [implementation decisions](docs/DECISIONS.md) and the [feature checklist](docs/FEATURES.md). WhatsApp setup and troubleshooting are in [the setup guide](docs/WHATSAPP-SETUP.md), also available on the website at `/docs`. The new Figma onboarding flow is described in [guided onboarding](docs/ONBOARDING.md). Normal startup contains no sample workspace; stored records with explicit demo room IDs are removed while real and manually created records are retained. Test fixtures remain isolated. The original build plan is in [docs/BuildPlan-v5.txt](docs/BuildPlan-v5.txt).
 
 ## iMessage on Mac
 
-After Full Disk Access is granted, Relay can read new text from conversations you choose in Messages. Open **Messages → Choose Chats → iMessage**. History before you enable a chat is not imported, and Relay does not send iMessages. Details and limits are in [docs/IMESSAGE.md](docs/IMESSAGE.md).
+After Full Disk Access is granted, Relay can read new text from conversations you choose in Messages. Open **Messages → Choose Chats → iMessage**. New messages arrive after enabling a chat; **Import Recent Messages** optionally brings in the latest 100 messages per selected chat. Reviewed text replies send through Messages after Automation access is granted. Details and limits are in [docs/IMESSAGE.md](docs/IMESSAGE.md).
 
 Account recovery, passphrase changes, and passphrase-confirmed account deletion are available in the native app. See [the current tracker](context/What%20works%20in%20Relay.md) for verified behavior and remaining work.

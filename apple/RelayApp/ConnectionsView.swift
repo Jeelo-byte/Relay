@@ -33,7 +33,7 @@ struct ConnectionsView: View {
     Group {
       ForEach(MessagingService.allCases) { service in
         Button {
-          selected = service
+          if service == .whatsapp { store.setupActive = true } else { selected = service }
         } label: {
           HStack(spacing: 12) {
             Image(systemName: service.symbol).frame(width: 24).foregroundStyle(RelayTheme.primary)

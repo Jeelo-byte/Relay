@@ -66,4 +66,29 @@ final class ContactNameTests: XCTestCase {
     XCTAssertEqual(restored.id, room.id)
     XCTAssertEqual(restored.backfill_cursor, room.backfill_cursor)
   }
+  @MainActor func testPickerUsesEditedContactNamesWithoutChangingChatSelection() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let local = try LocalStore(directory: directory, key: Data(repeating: 6, count: 32), namespace: UUID())
+    let store = RelayStore(localStore: local, restoreSession: false)
+    let party = Party(id: "imessage:+14155550100", name: "+14155550100", network: .imessage)
+    var room = ChatRoom(id: "imessage:9", name: party.display_name_snapshot, network: .imessage, optedIn: true)
+    room.participants = [party]; room.participant_handles = [party.display_name_snapshot]
+    room.native_display_name = ""; room.backfill_cursor = "82"
+    store.rooms = [room]
+    let contact = ContactProfile(name: "Captain", phones: ["+14155550100"])
+    XCTAssertTrue(store.saveContact(contact))
+    XCTAssertEqual(store.displayName(for: room), "Captain")
+    XCTAssertEqual(store.roomName(for: room), "Captain")
+    XCTAssertTrue(store.matchesConversation(room, query: "captain"))
+    var edited = contact; edited.name = "My edited name"
+    XCTAssertTrue(store.saveContact(edited))
+    XCTAssertEqual(store.displayName(for: party), "My edited name")
+    XCTAssertTrue(store.matchesConversation(room, query: "edited"))
+    edited.excludedPartyIDs = [party.id]
+    XCTAssertTrue(store.saveContact(edited))
+    XCTAssertEqual(store.displayName(for: party), party.display_name_snapshot)
+    XCTAssertEqual(store.rooms.first, room)
+  }
+
 }

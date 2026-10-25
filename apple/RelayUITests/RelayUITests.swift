@@ -16,7 +16,7 @@ final class RelayUITests: XCTestCase {
     app.launchArguments = ["-ui-testing"]
     app.launchEnvironment["RELAY_TEST_NAMESPACE"] = UUID().uuidString
     app.launch()
-    let local = app.buttons["Start on This Device"]
+    let local = app.buttons["Use Relay on This Device"]
     XCTAssertTrue(local.waitForExistence(timeout: 15))
     XCTAssertFalse(app.buttons["Explore Sample Workspace"].exists)
     local.tap()
@@ -28,6 +28,24 @@ final class RelayUITests: XCTestCase {
     XCTAssertFalse(local.exists)
     navigate("Messages", in: app)
     XCTAssertFalse(app.staticTexts["Maya Chen"].exists)
+  }
+  func testGuidedSetupResumesFromSettings() throws {
+    let app = XCUIApplication()
+    app.launchEnvironment["RELAY_TEST_NAMESPACE"] = UUID().uuidString
+    app.launch()
+    XCTAssertTrue(app.buttons["Set Up WhatsApp"].waitForExistence(timeout: 15))
+    app.buttons["Set Up WhatsApp"].tap()
+    XCTAssertTrue(app.staticTexts["Link WhatsApp."].waitForExistence(timeout: 5))
+    app.buttons["Set Up Later"].tap()
+    app.terminate(); app.launch()
+    XCTAssertTrue(app.staticTexts["A little less to catch up on."].waitForExistence(timeout: 10))
+    navigate("Settings", in: app)
+    app.buttons["Connected Apps"].firstMatch.tap()
+    app.buttons["Set Up WhatsApp"].firstMatch.tap()
+    XCTAssertTrue(app.staticTexts["Link WhatsApp."].waitForExistence(timeout: 5))
+    app.buttons["Back"].firstMatch.tap()
+    XCTAssertTrue(app.staticTexts["Start with one conversation."].waitForExistence(timeout: 5))
+    app.buttons["Use Relay on This Device"].tap()
   }
   func testCreateAgreementIsInMessageContextMenu() throws {
     let app = XCUIApplication()

@@ -2,6 +2,7 @@
 import RelayKit
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 /// Desktop composition follows the macOS Figma frames. Shared detail, editor,
 /// consent, and account screens retain their existing behavior.
@@ -95,7 +96,7 @@ struct MacWorkspaceView: View {
       Text("YOUR CONVERSATIONS").font(.system(size: 9, weight: .medium)).foregroundStyle(RelayTheme.muted).padding(.top, 8)
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-          ForEach(conversations.filter { search.isEmpty || store.contactNames.matches($0, query: search) }) { room in
+          ForEach(conversations.filter { search.isEmpty || store.matchesConversation($0, query: search) }) { room in
             Button { openConversation(room.id) } label: {
               HStack(spacing: 9) {
                 Avatar(name: store.displayName(for: room), size: 27)
@@ -379,7 +380,7 @@ private struct MacMessagesView: View {
   var onCreate: (Agreement) -> Void
   var onConnect: () -> Void
   @State private var query = ""
-  private var rooms: [ChatRoom] { store.rooms.filter { room in room.opted_in && (service == nil || room.service == service || room.network == service?.network) && (query.isEmpty || store.contactNames.matches(room, query: query) || store.messages.contains { $0.room_id == room.id && !$0.redacted && $0.text.localizedCaseInsensitiveContains(query) }) }.sorted { (latest($0)?.ts ?? 0) > (latest($1)?.ts ?? 0) } }
+  private var rooms: [ChatRoom] { store.rooms.filter { room in room.opted_in && (service == nil || room.service == service || room.network == service?.network) && (query.isEmpty || store.matchesConversation(room, query: query) || store.messages.contains { $0.room_id == room.id && !$0.redacted && $0.text.localizedCaseInsensitiveContains(query) }) }.sorted { (latest($0)?.ts ?? 0) > (latest($1)?.ts ?? 0) } }
   private var current: ChatRoom? { rooms.first { $0.id == selectedRoom } ?? rooms.first }
   private func latest(_ room: ChatRoom) -> ChatMessage? { store.messages.filter { $0.room_id == room.id }.max { $0.ts < $1.ts } }
   var body: some View {
@@ -436,42 +437,70 @@ private struct MacPeopleView: View {
   var onMessage: (String) -> Void
   @State private var query = ""
   @State private var selected: String?
+  @State private var addPerson = false
+  @State private var importFile = false
   private var parties: [Party] {
-    let ids = Set(store.rooms.filter(\.opted_in).map(\.id))
-    return Dictionary((store.visible.flatMap(\.parties) + store.messages.filter { ids.contains($0.room_id) && !$0.redacted }.map(\.sender)).filter { !$0.is_self }.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }).values.map { party in var value = party; value.display_name_snapshot = store.displayName(for: party); return value }.filter { query.isEmpty || $0.display_name_snapshot.localizedCaseInsensitiveContains(query) }.sorted { $0.display_name_snapshot < $1.display_name_snapshot }
+    let profiles = store.contacts.map { contact in Party(id: "contact:" + contact.id.uuidString, name: contact.name) }
+    return (profiles + store.knownParties.filter { store.contact(for: $0) == nil }).filter { party in
+      let name = store.displayName(for: party)
+      return query.isEmpty || name.localizedCaseInsensitiveContains(query)
+        || store.contact(for: party).map { ($0.phones + $0.emails).contains { $0.localizedCaseInsensitiveContains(query) } } == true
+    }.sorted { store.displayName(for: $0).localizedStandardCompare(store.displayName(for: $1)) == .orderedAscending }
   }
   var body: some View {
     GeometryReader { geometry in
       HStack(alignment: .top, spacing: 24) {
         VStack(spacing: 16) {
           MacSearchField(text: $query, prompt: "Find someone")
+          HStack {
+            Button("Add Person") { addPerson = true }
+            Menu("Import Contacts") {
+              Button("Import Device Contacts") { Task { await store.importDeviceContacts() } }.disabled(store.importingContacts)
+              Button("Import vCard File") { importFile = true }
+            }
+          }.font(.system(size: 12))
           ScrollView {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
               ForEach(parties) { party in
                 Button { selected = party.id } label: {
                   VStack(alignment: .leading, spacing: 12) {
-                    Avatar(name: party.display_name_snapshot, size: 56)
-                    Text(party.display_name_snapshot).font(.system(size: 14, weight: .semibold)).lineLimit(1)
-                    Text(party.network.label).font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
+                    Avatar(name: store.displayName(for: party), size: 56)
+                    Text(store.displayName(for: party)).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                    Text(store.contact(for: party) == nil ? party.network.label : "Linked contact").font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
                   }.padding(18).frame(maxWidth: .infinity, minHeight: 152, alignment: .topLeading).background(RelayTheme.surface, in: RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(selected == party.id ? RelayTheme.line : .clear))
                 }.buttonStyle(.plain)
               }
             }
-            if parties.isEmpty { Text("People from your chosen chats and agreements appear here.").foregroundStyle(RelayTheme.muted).padding() }
+            if parties.isEmpty { Text("Import contacts or choose chats to bring people here.").foregroundStyle(RelayTheme.muted).padding() }
+            if store.importingContacts { ProgressView("Importing Contacts…").padding() }
           }
         }.frame(width: min(480, max(280, geometry.size.width * 0.43)))
         if let person = parties.first(where: { $0.id == selected }) ?? parties.first {
           VStack(spacing: 0) {
             PersonDetailView(party: person, onSelect: onAgreement, desktopEmbedded: true).id(person.id).navigationTitle("")
-            if let room = store.rooms.first(where: { room in room.opted_in && store.messages.contains { $0.room_id == room.id && $0.sender.id == person.id } }) {
-              Button("Message \(person.display_name_snapshot)") { onMessage(room.id) }.buttonStyle(.borderless).foregroundStyle(RelayTheme.accentText).padding(20)
+            if let room = store.rooms.first(where: { room in
+              room.opted_in && store.messages.contains { message in
+                message.room_id == room.id && (message.sender.id == person.id
+                  || (store.contact(for: person) != nil && store.contact(for: message.sender)?.id == store.contact(for: person)?.id))
+              }
+            }) {
+              Button("Message \(store.displayName(for: person))") { onMessage(room.id) }.buttonStyle(.borderless).foregroundStyle(RelayTheme.accentText).padding(20)
             }
           }.frame(maxWidth: .infinity).frame(height: min(580, max(320, geometry.size.height - 56)))
             .background(RelayTheme.surface, in: RoundedRectangle(cornerRadius: 16)).clipShape(RoundedRectangle(cornerRadius: 16))
         } else { Spacer() }
       }.padding(28)
     }.background(RelayTheme.background)
+      .sheet(isPresented: $addPerson) { ContactEditor(original: nil, initialParty: nil) }
+      .fileImporter(isPresented: $importFile, allowedContentTypes: [.vCard]) { result in
+        do {
+          let url = try result.get()
+          let scoped = url.startAccessingSecurityScopedResource()
+          defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+          store.importContacts(try ContactsImporter.vCard(Data(contentsOf: url)))
+        } catch { store.error = error.localizedDescription }
+      }
   }
 }
 
@@ -577,7 +606,7 @@ struct MacConversationPicker: View {
   @State private var selectedOnly = false
   @State private var pending = Set<String>()
   private var filtered: [ChatRoom] {
-    rooms.filter { (!selectedOnly || $0.opted_in) && store.contactNames.matches($0, query: query) }
+    rooms.filter { (!selectedOnly || $0.opted_in) && store.matchesConversation($0, query: query) }
       .sorted { store.displayName(for: $0).localizedStandardCompare(store.displayName(for: $1)) == .orderedAscending }
   }
   var body: some View {

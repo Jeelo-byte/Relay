@@ -24,7 +24,7 @@ These sketches are product context. They do not authorize external messages or c
 - Final warm surfaces, 16-point cards, burgundy decisions, and readable dark-mode accent text.
 - Events dashboard and interactive week calendar, with existing create/edit/review/complete workflows retained.
 - Messages conversation list, source-linked conversation views, selected-chat local search, editable composer, explicit confirmation, persistent encrypted outbox, and idempotent Matrix transaction IDs.
-- Sending checks current room encryption and consent before submitting. iMessage on Mac now submits explicitly confirmed drafts through Messages; delivery remains visible in Messages and uncertain requests are not automatically retried.
+- Sending checks current room encryption and consent before submitting. iMessage on Mac sends reviewed text through Messages Automation and confirms an outgoing record in the selected chat. Uncertain sends are checked without resending. People supports encrypted local device/vCard contacts and manual identity links.
 - People grid, shared agreements, and editable encrypted device-local notes. Notes are clearly marked as not yet synced.
 - Day-grouped recaps, exact quoted fallback, opt-in local Gemma generation with validated citations, source-change marking, encrypted recap sync, chat/app filters, date selection, and sample photo assets exported from Figma.
 - Daily/weekly/monthly/yearly recurrence with explicit review of the next occurrence; unsupported rules remain manual.

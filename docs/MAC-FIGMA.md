@@ -1,6 +1,6 @@
 # macOS Figma implementation
 
-Base: `codex/account-security` at `a2a2279`, which includes the latest main branch and the subsequent security and messaging changes.
+The Mac workspace from `codex/mac-figma` is integrated with the current app. iPhone and iPad keep their existing navigation. The original branch was based on `a2a2279`.
 
 Reference: [Relay final product design, macOS page](https://www.figma.com/design/10XdD87FnyxKWFoeF0zogy/Relay?node-id=3-5).
 
@@ -23,3 +23,5 @@ Settings follow-up (0.3.3): Mac and iPad simulator builds passed; 48 Swift tests
 Conversation picker follow-up (0.3.4): iMessage and bridged chat selection now use the same searchable, bounded list with avatar rows, per-row include/pause actions, and an Included filter. iMessage setup places connection access and local-contact controls beside the picker. The old toggle lists are no longer used on Mac. Both existing local app paths are updated together to avoid launching an older copy.
 
 Validation: Mac and iPad simulator builds passed. 53 tests passed and five opt-in live tests were skipped, including five new contact lookup/search/compatibility tests. Native checks in an isolated workspace covered name search, empty results and clear search, Included filtering, row selection, and the iMessage setup layout. Personal contacts and message content are excluded from source, fixtures, and application archives.
+
+Main integration: the searchable picker preserves the newer contact editor, explicit profile links and unlink choices, recent-message import, send-status reconciliation, and web/hosting changes. The combined Mac and iPad simulator builds passed; 62 native tests and 14 JavaScript tests passed, with seven opt-in live tests skipped. The web production build also passed.

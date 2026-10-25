@@ -31,8 +31,9 @@ struct PassphraseSettingsView: View {
     busy = true; issue = nil
     defer { busy = false; current = "" }
     do {
-      try await APIClient(baseURL: session.baseURL, token: session.token).changePassphrase(session: session, current: current, replacement: replacement)
+      let offline = try await APIClient(baseURL: session.baseURL, token: session.token).changePassphrase(session: session, current: current, replacement: replacement)
       guard store.session?.account_id == session.account_id, !store.locked else { return }
+      try store.updateOfflineUnlock(offline, for: session)
       replacement = ""; confirmation = ""
       store.toast = "Passphrase changed · Other sessions signed out"
       dismiss()

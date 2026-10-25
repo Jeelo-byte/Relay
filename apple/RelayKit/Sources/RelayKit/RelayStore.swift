@@ -11,6 +11,8 @@ import SwiftUI
   @Published public private(set) var sendingMessage = false
   @Published public var rooms: [ChatRoom] = []
   @Published public private(set) var personNotes: [String: String] = [:]
+  @Published public private(set) var contacts: [ContactProfile] = []
+  @Published public private(set) var importingContacts = false
   @Published public var session: AccountSession?
   @Published public var isDemo = false
   @Published public var started = false
@@ -25,6 +27,8 @@ import SwiftUI
   @Published public var highlightedRoomID: String?
   @Published public var matrixStatus = "Not Connected"
   @Published public private(set) var includeAllWhatsApp = false
+  @Published public var setupActive = false
+  @Published public private(set) var setupStep: SetupStep = .welcome
   @Published public var imessageStatus = "Not Connected"
   @Published public var imessageError: String?
   @Published public private(set) var contactNames = ContactNameIndex()
@@ -33,6 +37,11 @@ import SwiftUI
   @Published public private(set) var contactNameError: String?
   private var contactNameGeneration = 0
   private var imessageSyncing = false
+  private var workspaceGeneration = UUID()
+  #if os(macOS)
+  var imessageClient = IMessageClient()
+  var imessageSend: @Sendable (String, String) async throws -> Void = { try await IMessageAutomation.send(target: $0, text: $1) }
+  #endif
   private var matrixSyncing = false
   private var matrixDiscoveredAt: Date?
   private var matrixSelectionVersion = 0
@@ -43,6 +52,7 @@ import SwiftUI
   private let roomsRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
   private let notesRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000003")!
   private let outgoingRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000004")!
+  private let contactsRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000005")!
   public init(localStore: LocalStore? = nil, restoreSession: Bool = true) {
     deviceID =
       UUID(uuidString: UserDefaults.standard.string(forKey: "relay.device") ?? "") ?? UUID()
@@ -62,7 +72,7 @@ import SwiftUI
       #else
         local = try localStore ?? LocalStore()
       #endif
-      for id in try local!.ids() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord {
+      for id in try local!.ids() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord && id != contactsRecord {
         if let header = try local!.load(RecordHeader.self, id: id), header.schema == "relay.recap/1" {
           if let recap = try local!.load(ConversationRecap.self, id: id) { recaps.append(recap) }
         } else if let a = try local!.load(Agreement.self, id: id) { agreements.append(a) }
@@ -71,9 +81,11 @@ import SwiftUI
       rooms = try local!.load([ChatRoom].self, id: roomsRecord) ?? []
       personNotes = try local!.load([String: String].self, id: notesRecord) ?? [:]
       outgoing = try local!.load([OutgoingMessage].self, id: outgoingRecord) ?? []
+      contacts = try local!.load([ContactProfile].self, id: contactsRecord) ?? []
       isDemo = (try local!.meta("demo")) == "true"
       started = (try local!.meta("started")) == "true"
       includeAllWhatsApp = (try local!.meta("whatsapp_all_chats")) == "true"
+      setupStep = SetupStep(rawValue: Int(try local!.meta("setup_step") ?? "0") ?? 0) ?? .welcome
       if ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil { try removeSampleData() }
       if restoreSession, ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil,
         let data = try KeychainStore.read("account-session")
@@ -92,23 +104,35 @@ import SwiftUI
     if ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] != nil,
       (ProcessInfo.processInfo.arguments.contains("-demo") || designPreview) && !started { loadDemo() }
   }
-  public func displayName(for room: ChatRoom) -> String { contactNames.displayName(for: room) }
+  public func displayName(for room: ChatRoom) -> String { roomName(for: room) }
+  public func matchesConversation(_ room: ChatRoom, query: String) -> Bool {
+    roomName(for: room).localizedStandardContains(query)
+      || room.participants.contains { displayName(for: $0).localizedStandardContains(query) }
+      || contactNames.matches(room, query: query)
+  }
   public func displayName(forRoomID id: String, fallback: String) -> String {
     rooms.first { $0.id == id }.map { displayName(for: $0) } ?? fallback
-  }
-  public func displayName(for party: Party) -> String {
-    guard !party.is_self, party.network == .imessage else { return party.display_name_snapshot }
-    let handle = party.id.hasPrefix("imessage:") ? String(party.id.dropFirst("imessage:".count)) : party.id
-    return contactNames.name(for: handle) ?? contactNames.name(for: party.display_name_snapshot) ?? party.display_name_snapshot
   }
   public var visible: [Agreement] { agreements.filter { $0.review_state != .dismissed } }
   public var dismissed: [Agreement] { agreements.filter { $0.review_state == .dismissed } }
   public var pendingCount: Int {
-    (try? local?.dirtyIDs().filter { $0 != chatRecord && $0 != roomsRecord && $0 != notesRecord && $0 != outgoingRecord }.count) ?? 0
+    (try? local?.dirtyIDs().filter { $0 != chatRecord && $0 != roomsRecord && $0 != notesRecord && $0 != outgoingRecord && $0 != contactsRecord }.count) ?? 0
   }
   public func beginManual() {
     started = true
     try? local?.setMeta("started", value: "true")
+  }
+  public func advanceSetup(_ step: SetupStep) {
+    setupStep = step
+    try? local?.setMeta("setup_step", value: String(step.rawValue))
+  }
+  public func leaveSetup() {
+    setupActive = false
+    beginManual()
+  }
+  public func messageSession() throws -> MatrixSession? {
+    guard !locked, let data = try KeychainStore.read("matrix-session") else { return nil }
+    return try JSONDecoder().decode(MatrixSession.self, from: data)
   }
   public func resetDeviceIdentity() {
     guard session == nil else { return }
@@ -146,10 +170,10 @@ import SwiftUI
     outgoing.removeAll { sampleRoom($0.room_id) }
     isDemo = false
     try local?.setMeta("demo", value: "false")
-    try local?.save(personNotes, id: notesRecord, dirty: false)
+    try local?.saveCollection(personNotes, id: notesRecord)
     try local?.save(outgoing, id: outgoingRecord, dirty: false)
-    try local?.save(messages, id: chatRecord, dirty: false)
-    try local?.save(rooms, id: roomsRecord, dirty: false)
+    try local?.saveCollection(messages, id: chatRecord)
+    try local?.saveCollection(rooms, id: roomsRecord)
   }
   @discardableResult public func save(_ a: Agreement) -> Bool {
     var value = a
@@ -271,6 +295,7 @@ import SwiftUI
   public func connect(_ newSession: AccountSession) throws {
     contactNameGeneration += 1
     contactNames = ContactNameIndex()
+    workspaceGeneration = UUID()
     // Sample data never silently joins a real account.
     if isDemo {
       for a in agreements { try local?.remove(a.id) }
@@ -280,6 +305,8 @@ import SwiftUI
       messages = []
       rooms = []
       personNotes = [:]
+      contacts = []
+      try local?.remove(contactsRecord)
       outgoing = []
       try local?.remove(outgoingRecord)
       try local?.remove(notesRecord)
@@ -294,6 +321,7 @@ import SwiftUI
       messages = []
       rooms = []
       personNotes = [:]
+      contacts = []
       outgoing = []
       KeychainStore.delete("matrix-session")
       cacheChats()
@@ -309,6 +337,7 @@ import SwiftUI
     Task { await sync() }
   }
   public func lock() {
+    workspaceGeneration = UUID()
     if session != nil {
       locked = true
       contactNames = ContactNameIndex()
@@ -342,6 +371,7 @@ import SwiftUI
   }
   public func signOut() {
     contactNameGeneration += 1
+    workspaceGeneration = UUID()
     syncTask?.cancel()
     imessageStatus = "Not Connected"
     imessageError = nil
@@ -365,17 +395,20 @@ import SwiftUI
     messages = []
     rooms = []
     personNotes = [:]
+    contacts = []
     outgoing = []
     locked = false
     started = false
+    setupActive = false
+    advanceSetup(.welcome)
     syncStatus = "On This Device"
     try? local?.setMeta("started", value: "false")
     toast = "Signed Out"
   }
   public func cacheChats() {
     do {
-      try local?.save(messages, id: chatRecord, dirty: false)
-      try local?.save(rooms, id: roomsRecord, dirty: false)
+      try local?.saveCollection(messages, id: chatRecord)
+      try local?.saveCollection(rooms, id: roomsRecord)
       rebuildRecaps()
     } catch { self.error = error.localizedDescription }
   }
@@ -385,7 +418,7 @@ import SwiftUI
     if note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { updated.removeValue(forKey: party) }
     else { updated[party] = note }
     do {
-      try local.save(updated, id: notesRecord, dirty: false)
+      try local.saveCollection(updated, id: notesRecord)
       personNotes = updated
       return true
     } catch { self.error = error.localizedDescription; return false }
@@ -427,7 +460,7 @@ import SwiftUI
     defer { syncing = false }
     let api = APIClient(baseURL: s.baseURL, token: s.token)
     do {
-      for id in try local.dirtyIDs() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord {
+      for id in try local.dirtyIDs() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord && id != contactsRecord {
         if let recap = recaps.first(where: { $0.id == id }) {
           try await syncRecap(recap, session: s, local: local, api: api)
           guard session?.account_id == s.account_id, !locked else { return }
@@ -931,9 +964,11 @@ extension RelayStore {
       imessageError = "Open your own workspace before connecting iMessage."
       return
     }
+    let generation = workspaceGeneration
     do {
-      let found = try await Task.detached { try IMessageClient().discover() }.value
-      guard !locked else { return }
+      let client = imessageClient
+      let found = try await Task.detached { try client.discover() }.value
+      guard !locked, workspaceGeneration == generation else { return }
       let existing = Dictionary(uniqueKeysWithValues: rooms.filter { $0.id.hasPrefix("imessage:") }.map { ($0.id, $0) })
       rooms = rooms.filter { !$0.id.hasPrefix("imessage:") } + found.map { room in
         var value = room
@@ -955,9 +990,11 @@ extension RelayStore {
   public func setIMessageOptIn(_ id: String, _ enabled: Bool) async {
     guard !locked, !isDemo, id.hasPrefix("imessage:") else { return }
     if !enabled { setOptIn(id, false); return }
+    let generation = workspaceGeneration
     do {
-      let latest = try await Task.detached { try IMessageClient().latest(room: id) }.value
-      guard !locked, let index = rooms.firstIndex(where: { $0.id == id }) else { return }
+      let client = imessageClient
+      let latest = try await Task.detached { try client.latest(room: id) }.value
+      guard !locked, workspaceGeneration == generation, let index = rooms.firstIndex(where: { $0.id == id }) else { return }
       rooms[index].backfill_cursor = String(latest)
       rooms[index].opted_in = true
       cacheChats()
@@ -968,27 +1005,34 @@ extension RelayStore {
     }
   }
   public func syncIMessages() async {
+    await importIMessages(recent: false)
+  }
+  public func importRecentIMessages() async {
+    await importIMessages(recent: true)
+  }
+  private func importIMessages(recent: Bool) async {
     guard !locked, !isDemo, !imessageSyncing else { return }
     let selected = rooms.filter { $0.id.hasPrefix("imessage:") && $0.opted_in }
     guard !selected.isEmpty else { return }
     imessageSyncing = true
     defer { imessageSyncing = false }
+    let generation = workspaceGeneration
     do {
       for room in selected {
+        let client = imessageClient
         let cursor = Int64(room.backfill_cursor ?? "0") ?? 0
         let result = try await Task.detached {
-          try IMessageClient().messages(room: room.id, after: cursor)
+          try recent ? client.recentMessages(room: room.id) : client.messages(room: room.id, after: cursor)
         }.value
-        guard !locked else { return }
+        guard !locked, workspaceGeneration == generation else { return }
         guard let index = rooms.firstIndex(where: { $0.id == room.id }), rooms[index].opted_in else { continue }
         for message in result.messages where !messages.contains(where: { $0.id == message.id }) {
           messages.append(message)
         }
-        rooms[index].backfill_cursor = String(result.cursor)
+        rooms[index].backfill_cursor = String(max(cursor, result.cursor))
         // Persist imported messages before advancing the saved cursor.
         cacheChats()
       }
-      reconcileIMessageOutbox()
       imessageError = nil
       imessageStatus = "Connected"
     } catch {
@@ -998,6 +1042,92 @@ extension RelayStore {
   }
 }
 #endif
+
+extension RelayStore {
+  public var knownParties: [Party] {
+    guard !locked else { return [] }
+    let allowed = Set(rooms.filter(\.opted_in).map(\.id))
+    let parties = visible.flatMap(\.parties) + rooms.filter(\.opted_in).flatMap(\.participants)
+      + messages.filter { allowed.contains($0.room_id) && !$0.redacted }.map(\.sender)
+    return Dictionary(parties.filter { !$0.is_self }.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+      .values.sorted { $0.display_name_snapshot.localizedStandardCompare($1.display_name_snapshot) == .orderedAscending }
+  }
+  public func contact(for party: Party) -> ContactProfile? {
+    guard !locked else { return nil }
+    return ContactMatching.profile(for: party, in: contacts)
+  }
+  public func displayName(for party: Party) -> String {
+    if let contact = contact(for: party) { return contact.name }
+    guard !locked, !party.is_self, party.network == .imessage,
+      !contacts.contains(where: { $0.excludedPartyIDs.contains(party.id) }) else { return party.display_name_snapshot }
+    let handle = party.id.hasPrefix("imessage:") ? String(party.id.dropFirst("imessage:".count)) : party.id
+    return contactNames.name(for: handle) ?? contactNames.name(for: party.display_name_snapshot) ?? party.display_name_snapshot
+  }
+  public func roomName(for room: ChatRoom) -> String {
+    if let title = room.native_display_name, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return title }
+    if room.participants.count == 1, let party = room.participants.first,
+      room.name == party.display_name_snapshot || room.native_display_name == "" { return displayName(for: party) }
+    if room.native_display_name == "", room.participants.count > 1 {
+      let labels = room.participants.map { displayName(for: $0) }
+      return labels.prefix(3).joined(separator: ", ") + (labels.count > 3 ? " +\(labels.count - 3)" : "")
+    }
+    return contactNames.displayName(for: room)
+  }
+  public func parties(for contact: ContactProfile) -> [Party] {
+    var parties = knownParties.filter { self.contact(for: $0)?.id == contact.id }
+    for id in contact.linkedPartyIDs where !parties.contains(where: { $0.id == id }) {
+      let network = Network(rawValue: String(id.split(separator: ":").first ?? "other")) ?? .other
+      parties.append(Party(id: id, name: id, network: network))
+    }
+    return parties
+  }
+  @discardableResult private func saveContacts(_ updated: [ContactProfile]) -> Bool {
+    guard !locked, let local else { error = VaultError.locked.localizedDescription; return false }
+    do {
+      try local.saveCollection(updated, id: contactsRecord)
+      contacts = updated
+      return true
+    } catch { self.error = error.localizedDescription; return false }
+  }
+  @discardableResult public func saveContact(_ contact: ContactProfile) -> Bool {
+    guard !contact.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { error = "Enter a name for this person."; return false }
+    var updated = contacts.filter { $0.id != contact.id }.map { other in
+      var value = other
+      value.linkedPartyIDs.removeAll { contact.linkedPartyIDs.contains($0) }
+      return value
+    }
+    updated.append(contact)
+    return saveContacts(updated)
+  }
+  @discardableResult public func removeContact(_ id: UUID) -> Bool { saveContacts(contacts.filter { $0.id != id }) }
+  @discardableResult public func importContacts(_ incoming: [ContactProfile]) -> Bool {
+    var updated = contacts
+    for profile in incoming {
+      if let index = updated.firstIndex(where: {
+        if let source = profile.sourceID { return $0.sourceID == source }
+        return $0.name == profile.name && $0.phones == profile.phones && $0.emails == profile.emails
+      }) {
+        // Refresh imported addresses, retaining the user's name and linking decisions.
+        updated[index].phones = profile.phones; updated[index].emails = profile.emails
+      } else { updated.append(profile) }
+    }
+    guard saveContacts(updated) else { return false }
+    toast = "Imported \(incoming.count) contacts"
+    return true
+  }
+  public func importDeviceContacts() async {
+    guard !locked, !importingContacts else { return }
+    importingContacts = true
+    defer { importingContacts = false }
+    let account = session?.account_id
+    let generation = workspaceGeneration
+    do {
+      let profiles = try await ContactsImporter.deviceContacts()
+      guard !locked, session?.account_id == account, workspaceGeneration == generation else { return }
+      importContacts(profiles)
+    } catch { self.error = error.localizedDescription }
+  }
+}
 
 private struct RecordHeader: Decodable { var schema: String }
 extension RelayStore {
@@ -1068,25 +1198,53 @@ extension RelayStore {
 }
 
 extension RelayStore {
+  private func sendIMessage(_ text: String, room id: String, message original: OutgoingMessage, local: LocalStore, account: UUID?, generation: UUID) async throws -> String {
+    #if os(macOS)
+    var message = original
+    let transactionID = message.id
+        let client = imessageClient
+        if message.imessage_after == nil {
+          let prepared = try await Task.detached { (try client.sendTarget(room: id), try client.latest(room: id)) }.value
+          guard !locked, workspaceGeneration == generation, session?.account_id == account, rooms.contains(where: { $0.id == id && $0.opted_in }) else { throw CancellationError() }
+          message.imessage_after = prepared.1
+          if let index = outgoing.firstIndex(where: { $0.id == transactionID }) { outgoing[index] = message }
+          // A crash from this point onward must never silently cause another dispatch.
+          try local.save(outgoing, id: outgoingRecord, dirty: false)
+          try await imessageSend(prepared.0, text)
+        }
+        var confirmed: ChatMessage?
+        for attempt in 0..<10 {
+          guard !locked, workspaceGeneration == generation, session?.account_id == account else { throw CancellationError() }
+          let after = message.imessage_after ?? 0
+          confirmed = try await Task.detached { try client.outgoingMessage(room: id, after: after, text: text) }.value
+          if confirmed != nil { break }
+          if attempt < 9 { try await Task.sleep(for: .milliseconds(500)) }
+        }
+        guard let confirmed else { throw IMessageSendError.unconfirmed }
+        guard !locked, workspaceGeneration == generation, session?.account_id == account else { throw CancellationError() }
+        if !messages.contains(where: { $0.id == confirmed.id }) { messages.append(confirmed); cacheChats() }
+    return confirmed.event_id
+    #else
+    throw VaultError.locked
+    #endif
+  }
   @discardableResult public func sendMessage(_ text: String, room id: String, transactionID: UUID) async -> Bool {
     guard !locked, !sendingMessage, let local,
       let room = rooms.first(where: { $0.id == id && $0.opted_in }),
-      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.utf8.count <= 16_000 else { return false }
+      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !text.contains("\0"), text.utf8.count <= 16_000 else { return false }
     if let previous = outgoing.first(where: { $0.id == transactionID }) {
       guard previous.room_id == id, previous.body == text else { error = "Retry the original draft, or start a new draft."; return false }
       if previous.state == "sent" { return true }
     }
-    if !isDemo && room.id.hasPrefix("imessage:") {
-      #if os(macOS)
-      return await sendIMessage(text, room: room, transactionID: transactionID)
-      #else
-      error = "Send iMessages from Relay on your Mac."
-      return false
-      #endif
-    }
+    #if !os(macOS)
+    if !isDemo && room.id.hasPrefix("imessage:") { error = "Send iMessages from Relay on your Mac."; return false }
+    #endif
     let account = session?.account_id
+    let generation = workspaceGeneration
     var message = OutgoingMessage(id: transactionID, room: id, body: text)
-    if let prior = outgoing.first(where: { $0.id == transactionID }) { message.created_at = prior.created_at }
+    if let prior = outgoing.first(where: { $0.id == transactionID }) {
+      message.created_at = prior.created_at; message.imessage_after = prior.imessage_after
+    }
     do {
       var updated = outgoing.filter { $0.id != transactionID && $0.state != "sent" }; updated.append(message)
       guard try JSONEncoder().encode(updated).count <= 60_000 else {
@@ -1100,17 +1258,20 @@ extension RelayStore {
     do {
       let event: String
       if isDemo { event = "$sample-" + transactionID.uuidString }
+      else if room.id.hasPrefix("imessage:") {
+        event = try await sendIMessage(text, room: id, message: message, local: local, account: account, generation: generation)
+      }
       else {
         guard let data = try KeychainStore.read("matrix-session") else { throw VaultError.locked }
         let matrix = try JSONDecoder().decode(MatrixSession.self, from: data)
         event = try await MatrixClient(session: matrix).send(room: room, text: text, transactionID: transactionID) { [weak self] in
           guard let self else { return false }
-          return !self.locked && self.session?.account_id == account
+          return !self.locked && self.workspaceGeneration == generation && self.session?.account_id == account
             && self.rooms.contains(where: { $0.id == id && $0.opted_in })
             && (try? KeychainStore.read("matrix-session")) == data
         }
       }
-      guard !locked, session?.account_id == account else { return false }
+      guard !locked, workspaceGeneration == generation, session?.account_id == account else { return false }
       if !messages.contains(where: { $0.room_id == id && $0.event_id == event }) {
         var chat = ChatMessage(room: id, event: event, sender: .me, text: text, network: room.network)
         chat.service = room.service; messages.append(chat); cacheChats()
@@ -1119,15 +1280,17 @@ extension RelayStore {
         outgoing[index].state = "sent"; outgoing[index].event_id = event; outgoing[index].error = nil
       }
       try local.save(outgoing, id: outgoingRecord, dirty: false)
-      toast = isDemo ? "Sample message added · Nothing sent externally" : "Message sent to \(room.name)"
+      toast = isDemo ? "Sample message added · Nothing sent externally" : (room.id.hasPrefix("imessage:") ? "Message added to Messages · Check Messages for delivery" : "Message sent to \(room.name)")
       return true
     } catch {
-      guard !locked, session?.account_id == account else { return false }
+      guard !locked, workspaceGeneration == generation, session?.account_id == account else { return false }
       if let index = outgoing.firstIndex(where: { $0.id == transactionID }) {
         outgoing[index].state = "failed"; outgoing[index].error = error.localizedDescription
       }
       try? local.save(outgoing, id: outgoingRecord, dirty: false)
-      self.error = "Delivery was not confirmed. Retry this draft to check the same send request. \(error.localizedDescription)"
+      self.error = room.id.hasPrefix("imessage:")
+        ? "Send not confirmed. Check Send Status does not resend. \(error.localizedDescription)"
+        : "Delivery was not confirmed. Retry this draft to check the same send request. \(error.localizedDescription)"
       return false
     }
   }
@@ -1144,75 +1307,3 @@ extension RelayStore {
     } catch { self.error = error.localizedDescription; return false }
   }
 }
-
-#if os(macOS)
-extension RelayStore {
-  private func sendIMessage(_ text: String, room: ChatRoom, transactionID: UUID) async -> Bool {
-    guard let local, !room.encrypted else { return false }
-    if let previous = outgoing.first(where: { $0.id == transactionID }) {
-      if previous.state == "sent" || previous.state == "submitted" { return true }
-      guard previous.nativeRetryAllowed else {
-        error = "Check this conversation in Messages before starting a new draft. The previous request may already have been sent."
-        return false
-      }
-    }
-    let account = session?.account_id
-    sendingMessage = true
-    defer { sendingMessage = false }
-    var dispatched = false
-    do {
-      let target = try await Task.detached {
-        let client = IMessageClient()
-        return (try client.sendTarget(room: room.id), try client.latest(room: room.id))
-      }.value
-      guard !locked, session?.account_id == account,
-        rooms.contains(where: { $0.id == room.id && $0.opted_in }) else { return false }
-      var record = OutgoingMessage(id: transactionID, room: room.id, body: text)
-      record.state = "dispatching"; record.native_after_row = target.1
-      var updated = outgoing.filter { $0.id != transactionID && $0.state != "sent" }
-      updated.append(record)
-      guard try JSONEncoder().encode(updated).count <= 60_000 else {
-        error = "Review or discard waiting drafts before sending another."; return false
-      }
-      // Persist the uncertainty marker BEFORE the non-idempotent Apple event.
-      try local.save(updated, id: outgoingRecord, dirty: false); outgoing = updated
-      dispatched = true
-      try IMessageSender.submit(chat: target.0, text: text)
-      if let index = outgoing.firstIndex(where: { $0.id == transactionID }) {
-        outgoing[index].state = "submitted"; outgoing[index].error = nil
-      }
-      try local.save(outgoing, id: outgoingRecord, dirty: false)
-      toast = "Submitted to Messages · Check delivery in Messages"
-      await syncIMessages()
-      return true
-    } catch {
-      guard !locked, session?.account_id == account else { return false }
-      let definiteFailure: Bool
-      if case IMessageSendError.notSent = error { definiteFailure = true } else { definiteFailure = !dispatched }
-      if let index = outgoing.firstIndex(where: { $0.id == transactionID }) {
-        outgoing[index].state = definiteFailure ? "failed" : "uncertain"
-        outgoing[index].error = error.localizedDescription
-        try? local.save(outgoing, id: outgoingRecord, dirty: false)
-      }
-      self.error = error.localizedDescription
-      return false
-    }
-  }
-  func reconcileIMessageOutbox() {
-    var used = Set(outgoing.compactMap(\.event_id))
-    var changed = false
-    for index in outgoing.indices where outgoing[index].room_id.hasPrefix("imessage:")
-      && ["dispatching", "submitted", "uncertain"].contains(outgoing[index].state) {
-      let record = outgoing[index]
-      if let message = messages.sorted(by: { $0.ts < $1.ts }).first(where: {
-        $0.room_id == record.room_id && $0.sender.is_self && !$0.redacted
-          && $0.text == record.body && $0.ts >= record.created_at && !used.contains($0.event_id)
-      }) {
-        outgoing[index].state = "sent"; outgoing[index].event_id = message.event_id
-        outgoing[index].error = nil; used.insert(message.event_id); changed = true
-      }
-    }
-    if changed { try? local?.save(outgoing, id: outgoingRecord, dirty: false) }
-  }
-}
-#endif

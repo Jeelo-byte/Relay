@@ -23,7 +23,7 @@ extension APIClient {
     let keys = try await Task.detached { try RelayCrypto.derive(passphrase: passphrase, salt: salt) }.value
     _ = try await request("account", method: "DELETE", body: ["handle": handle, "auth_key": keys.auth.base64URL])
   }
-  public func changePassphrase(session: AccountSession, current: String, replacement: String) async throws {
+  public func changePassphrase(session: AccountSession, current: String, replacement: String) async throws -> OfflineUnlock {
     guard replacement.count >= 12, Set(replacement).count >= 6 else {
       throw APIError(status: 0, code: "weak_passphrase", message: "Use at least 12 characters with several unrelated words.", current: nil)
     }
@@ -40,6 +40,7 @@ extension APIClient {
       "kdf_salt": nextSalt.base64URL, "kdf_params": ["alg": "argon2id13", "ops": 3, "mem": 67108864],
       "wrapped_dek": wrap.base64URL,
     ])
+    return OfflineUnlock(salt: nextSalt, wrappedKey: wrap)
   }
   public func devices() async throws -> [AccountDevice] {
     struct Response: Decodable { var devices: [AccountDevice] }

@@ -41,10 +41,10 @@ struct RootView: View {
   }
   var body: some View {
     Group {
-      if !store.started {
-        WelcomeView(showAccount: $account)
-      } else if store.locked {
+      if store.locked {
         UnlockView()
+      } else if !store.started || store.setupActive {
+        GuidedWhatsAppSetupView(onClose: { store.leaveSetup() }, onMessages: { store.leaveSetup(); destination = .inbox })
       } else if compact {
         compactView
       } else {

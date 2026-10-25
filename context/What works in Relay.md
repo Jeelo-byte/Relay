@@ -1,14 +1,14 @@
 # What works in Relay
 
-Baseline: `main` at `1cede3a`, including implementation `5125b33`. Continuing on `codex/account-security`, updated October 25, 2026. A row is “Works” only when a test or a recorded run passed. A screen that merely exists is not counted as done.
+Baseline: `main` at `62f2cdc`, updated October 25, 2026. Earlier evidence through `5125b33` and the account-security merge `3cceeaa` remains below. A row is “Works” only when a test or a recorded run passed. A screen that merely exists is not counted as done.
 
 | | Count |
 | --- | --- |
 | Areas with passing evidence | 16 |
-| Built, not proven in use | 5 |
-| Missing or blocked | 9 |
+| Built, not proven in use | 6 |
+| Missing or blocked | 8 |
 
-The Mac now displays a real incoming WhatsApp message from the single group selected by the user. The sample workspace and manual agreements also have passing evidence. A real-chat agreement accepted on iPad and visible on the website has not been run. Automatic sending is intentionally absent; outgoing delivery to a real messaging network is not yet verified.
+The Mac now displays a real incoming WhatsApp message from the single group selected by the user. The sample workspace and manual agreements also have passing evidence. A real-chat agreement accepted on iPad and visible on the website has not been run. Unattended sending is still absent. The Mac has a reviewed iMessage send path and the local website can confirm a Matrix reply, but outgoing delivery on a real messaging network was not verified for this checkpoint.
 
 Counts of product areas at the current branch checkpoint. Source: tests, `docs/FINAL-DESIGN.md`, and GitHub Actions run 40167830184.
 
@@ -25,7 +25,7 @@ Counts of product areas at the current branch checkpoint. Source: tests, `docs/F
 | On-device messages | Search stays in chosen chats. A Matrix send is idempotent and rejects encrypted rooms or withdrawn consent. The composer asks before sending. |
 | People notes | Private notes are encrypted on the device, survive relaunch, and are kept out of the sync outbox. |
 | Reminders and calendar files | Only accepted, open, unambiguous future items are planned. Calendar drafts escape text and fold long lines. Scheduling code talks to the system notification center. |
-| Builds on main | GitHub Actions on commit `5125b33` passed `npm test`, the web production build, and `swift test` in 2m 50s. Live model, Neon, and Matrix tests are skipped in that workflow. |
+| Builds on main | GitHub Actions on commit `62f2cdc` passed the web job (`npm test` and the production build) and `swift test` in 2m 45s (run `40180451095`). Live model, Neon, and Matrix tests are skipped in that workflow. The Mac Xcode target includes the iMessage send path, contact import, and Automation entitlements. That workflow does not package the Mac app. |
 
 | Redesigned iPhone and iPad flows | Four flows passed in each expanded run: manual creation, review/completion/persistence, chat search/source jump, and recap collage/sources. The send-confirmation flow then passed separately on each platform. iPhone final send result: `artifacts/iphone-review-send-r2.xcresult`; iPad: `artifacts/ipad-confirm-send-r3.xcresult`. The review sheet replaces the action popover that exposed the test issue. A fresh all-five iPhone run passed in 99.357 seconds on the security build (`artifacts/security-iphone-all.xcresult`). The fresh all-five iPad run also passed in 101.879 seconds (`artifacts/security-ipad-all.xcresult`). CI does not run UI tests. |
 | Passphrase change | Current-passphrase proof required. Updates the salt, authentication verifier, and passphrase-wrapped data key atomically, retains the recovery wrap, and invalidates other sessions and leases. Live API tests passed; native integration passed in 5.125 seconds, including re-login and decrypting the original agreement with the unchanged data key. Wrong and stale proofs are rejected. Settings UI implemented; its end-to-end interaction test is pending. |
@@ -40,7 +40,8 @@ Counts of product areas at the current branch checkpoint. Source: tests, `docs/F
 
 | Area | What is still open |
 | --- | --- |
-| Live iMessage | The reader is tested on fixtures: opt-in, no history import, rich text, and dedupe. A real Messages database with Full Disk Access has not been recorded as passing. |
+| Live iMessage | The reader and send path are tested on fixtures: selected-chat cursors, rich text, dedupe, exact chat routing, recent-history isolation, script escaping, and uncertain-send reconciliation. Contact import, vCard import, and profile linking have fixture tests. A real Messages database read or send still needs macOS Full Disk Access and Automation. None was sent. |
+| Live chats on the local website | The site can connect to the local message server, include chats, refresh, search loaded messages, show photos, and confirm replies. Lock, reload, and leaving the page drop the message session. Client tests cover encryption, consent, dedupe, and media bounds. A repeated live WhatsApp delivery check in the browser was not recorded for `62f2cdc`. |
 | A reminder on a device | The plan is unit tested. No device has been checked to confirm a notification appears, or that the body stays private. |
 | Biometric unlock | Signed builds can use the current biometric set. An ad-hoc Mac build uses the login keychain and does not offer biometrics. |
 | Same account in the browser | The web client can unlock and decrypt. Creating an agreement on the Mac and seeing that same record in the browser has not been run. |
@@ -51,14 +52,13 @@ Counts of product areas at the current branch checkpoint. Source: tests, `docs/F
 
 | Area | Current limit |
 | --- | --- |
-| Live chat on the website | The site shows saved excerpts. It does not open a Matrix room or send a message. |
-| Sending iMessage | Mac can copy a reply. It does not send, and it does not carry those chats to iPhone, iPad, or the server. |
+| Sending iMessage on a real Mac | The Mac app can send a reviewed text reply through Messages after Automation permission, and it can import and link contacts. Those paths are fixture-tested. Full Disk Access and Automation were not granted for this checkpoint, and no real message was sent. iMessage chats still do not carry to iPhone, iPad, or the server. |
 | Other chat networks | Synapse is healthy and seven bridge containers are running locally: WhatsApp, Discord, Signal, Slack, Google Messages, Messenger, and Instagram. This proves process readiness only. WhatsApp incoming traffic is now verified on Mac for one selected group. Other services remain unlinked/unverified; Telegram still needs its API credentials. |
-| Data-key rotation and offline unlock | Passphrase changes, recovery resets, and account deletion now pass live tests. Rotating the actual encryption data key and offline passphrase unlock remain unfinished. Security screens compile, but their full user-interaction flows still need separate UI tests. |
+| Data-key rotation | Passphrase changes, recovery resets, and account deletion pass live tests. Offline passphrase unlock after an online sign-in is implemented, with a unit test for the cached wrap. Rotating the actual encryption data key is not implemented. Security screens compile, but their full user-interaction flows still need separate UI tests. |
 | Two devices editing one agreement | Optimistic conflicts, tombstones, high-water marks, and quarantine code exist; individual tombstone/high-water tests pass. Field-level three-way merging and the full cross-device conflict/rollback scenario remain unfinished or unverified. |
 | Real photos and attachments | The collage uses three sample images. Chat attachments stay unsupported placeholders. |
 | Synced person notes | Notes stay on the device that wrote them. |
-| Final onboarding and Settings | Release must open into the Figma onboarding flow, with no automatic sample conversations, agreements, people, photos, or recaps. Welcome, app connection, explicit chat selection, and preferences must be functional and match the final Figma design. Current demo startup is not the release experience. See the acceptance requirements below. |
+| Final onboarding and Settings | WhatsApp has a four-step setup in the app: Get started, Link WhatsApp, Choose chats, and Check delivery. It is shared by first launch and Settings. Figma onboarding for every other messaging service was not completed. The Mac app uses the Figma desktop workspace: a persistent sidebar and the five destinations. iPhone and iPad keep their existing navigation. Release must still open into the full Figma onboarding flow, with no automatic sample conversations, agreements, people, photos, or recaps. See the acceptance requirements below. |
 | Model evaluation and cloud mode | One Mac fixture passed. The ten-fixture gate, cloud provider, embeddings, OCR, and voice evidence are absent. |
 
 ## Current verification
@@ -79,13 +79,13 @@ Deliver one complete, verified item, update this file with its evidence, and pus
 | Order | Deliverable | Status and completion gate |
 | --- | --- | --- |
 | 1 | WhatsApp sync, photo previews, message actions, and real-data-only startup | Pushed as `05e9a10` to `codex/account-security` and draft PR #2. See evidence below. A fresh visual inspection of the running Mac app remains open; this is separate from passing live read-only ingestion and simulator interactions. |
-| 2 | Friendly guided connections | Pending. Implement the existing guided WhatsApp Figma flow in native startup and Settings. Save/resume progress, allow setup later, show actual pairing/expiry/reconnect states, search/select chats, and require a real incoming-message check. Remove manual infrastructure steps from the ordinary connection flow where the implementation supports it. Then verify each additional service one at a time. |
-| 3 | Hosting and reachability | Pending. Choose and document local Mac versus always-on relay hosting; separate website/API, encrypted storage, and bridge infrastructure. Provide trusted HTTPS access for phones and browsers, durable bridge sessions, backups, and actual reconnect/restart evidence. No hosting purchase or public deployment has been made. |
-| 4 | Live website interface | Pending. Implement authenticated live conversation lists, incoming updates, message search, real photo display, and confirmed sending with chat consent and lock/session cleanup. Verify against the same real WhatsApp account; saved source excerpts alone do not satisfy this. |
+| 2 | Friendly guided connections | WhatsApp’s four-step setup is in the app for first launch and Settings: Get started, Link WhatsApp, Choose chats, and Check delivery. It includes save/resume, set up later, pairing/expiry/reconnect states, chat search, and a real incoming-message gate. Pairing-state and resume tests cover the logic. A live phone scan in this session was not repeated. Figma onboarding for every other messaging service was not completed; those services still use their existing setup screens. |
+| 3 | Hosting and reachability | Local Mac hosting is documented and scripted: website on 127.0.0.1:3100, loopback gateway on 127.0.0.1:3400, encrypted message-plane backup, and an optional launch agent. The current demo stays on localhost. Tailscale HTTPS for phones was deferred and is not verified. |
+| 4 | Live website interface | The local site can connect to the message server, include chats explicitly, refresh, search loaded messages, show photos, and confirm replies. Lock, reload, and leaving the page drop the message session. Browser checks against the running WhatsApp room were started in the earlier session; this pass rechecked the client tests and the lock/unmount path in code. |
 | 5 | Complete website documentation | Initial WhatsApp setup guide built. Keep it current with linking, host requirements, privacy, chat controls, images, errors, reconnects, cross-device setup, and service-specific availability. Document every finished checkpoint as it ships. |
-| 6 | Final polish across platforms | Initial web motion added: 160 ms page-entry transitions and 120 ms navigation feedback, disabled by Reduce Motion. Broader polish remains pending: follow the existing Figma designs and verify keyboard, VoiceOver, large text, dark mode, compact layouts, and empty/error states across platforms. |
-| 7 | Remaining security and sync work | Pending. Dedicated passphrase/recovery/deletion UI tests, actual data-key rotation, offline passphrase unlock, and field-level multi-device conflict handling. |
-| 8 | Remaining product features and evidence | Pending. Live attachments/recap galleries, synced person notes, real iMessage verification, reminder delivery, model evaluation/cloud mode, and the outstanding acceptance requirements in the build plan. |
+| 6 | Final polish across platforms | Initial web motion added: 160 ms page-entry transitions and 120 ms navigation feedback, disabled by Reduce Motion. The Mac app now uses the Figma desktop workspace while keeping the tested iMessage outbox. Chat id and message text are Apple event parameters. Broader polish remains pending: follow the existing Figma designs and verify keyboard, VoiceOver, large text, dark mode, compact layouts, and empty/error states across platforms. |
+| 7 | Remaining security and sync work | Offline passphrase unlock is implemented for a device that has signed in online, with a unit test for the cached wrap. Passphrase change refreshes that cache. Data-key rotation, dedicated security UI tests, and field-level multi-device conflict handling remain unfinished. |
+| 8 | Remaining product features and evidence | iMessage on Mac can read chosen chats and send through Messages after Automation permission; contact import and manual profile links are in People, with fixture tests. A real read or send still needs Full Disk Access and Automation. Neither grant was used, and no real iMessage was sent. Live attachments/recap galleries, synced person notes, reminder delivery, model evaluation/cloud mode, and the outstanding acceptance requirements in the build plan remain open. |
 
 October 25 user clarification: service connection must become user friendly, the project needs an explicit server-hosting plan, the website must have both documentation and a working live interface, and final polish includes small navigation animations. These are implementation requirements; they are not complete merely because designs exist.
 
@@ -114,14 +114,14 @@ User requested automatic incoming updates, all WhatsApp conversations, actual im
 
 The live read-only WhatsApp integration test passed, including an authenticated image download. The latest Swift run is logged in `artifacts/whatsapp-full-tests.log`; final UI checks and build evidence are recorded after verification. Cross-device live chat, web live chat, videos, full media galleries, and automatic agreement acceptance are not claimed.
 
-New requirements and current controls: [WhatsApp setup](../docs/WHATSAPP-SETUP.md) and [guided onboarding](../docs/ONBOARDING.md). The user explicitly requires **real data only** now: remove normal sample entry points, demo launch defaults and stored known fixture records while preserving real data. Figma work adds a separate guided WhatsApp setup page; implementation of that new native startup flow remains separate from the design deliverable. Website documentation is being added at `/docs`.
+New requirements and current controls: [WhatsApp setup](../docs/WHATSAPP-SETUP.md) and [guided onboarding](../docs/ONBOARDING.md). The user explicitly requires **real data only** now: remove normal sample entry points, demo launch defaults and stored known fixture records while preserving real data. The app now includes the four-step WhatsApp setup for first launch and Settings. Figma onboarding for every other messaging service was not completed. Website documentation is at `/docs`.
 
 ## October 25 implementation checkpoint: WhatsApp and clean startup
 
 - Incoming refresh runs every three seconds while the Mac workspace is unlocked, independently of encrypted-account sync. All-chat inclusion is saved; discovery preserves per-chat pauses and reconnecting the same message account retains them. A new message account starts with chat consent off. New or re-enabled chats reset their initial sync cursor so their first messages cannot be skipped. Consent changes during a request cannot overwrite that reset.
 - WhatsApp decryption placeholders recover into text or image messages, including replacements bundled into an initial sync. Regression coverage checks sender identity, deduplication, original timestamps, paused chats, persistence, and preservation of deleted state.
 - Authenticated photos have loading/retry states and a 20 MB bound. Message actions use the system context menu and accessibility actions. Normal native and web entry points no longer offer samples; launch scripts and Xcode defaults no longer seed them. Cleanup removes fixture-only source records and keeps real messages, manual agreements, mixed-source agreements, and private notes.
-- Website `/docs` now explains WhatsApp linking, chat selection, delivery checks, photos, agreement actions, privacy, troubleshooting, and server requirements. It is linked from web sign-in and web Help & Feedback. Local hosting is the implemented setup; an always-on host and a live browser messaging interface remain pending.
+- Website `/docs` now explains WhatsApp linking, chat selection, delivery checks, photos, agreement actions, privacy, troubleshooting, and server requirements. It is linked from web sign-in and web Help & Feedback. Localhost host scripts are in the tree. The website can open a local Matrix session. Tailscale HTTPS and an always-on host remain unverified.
 
 Verification on October 25:
 
@@ -139,3 +139,13 @@ No message was sent to a real WhatsApp conversation during this checkpoint. Cred
 ### Web motion follow-up
 
 Added short page-entry transitions (160 ms, 4 px) to workspace destinations, sign-in, and the setup guide, plus 120 ms color feedback in navigation. Content refreshes do not restart the transition. The browser's Reduce Motion preference disables these animations and transitions. Production build passed (`artifacts/web-motion-build.log`); browser inspection confirmed `relay-page-enter` at `0.16s`, then `none` with Reduce Motion enabled. The compact guide measured 342 px of content at a 390 px viewport with 17 px body text and no horizontal overflow. Native page transitions and the broader accessibility/polish pass remain open.
+
+## October 25 main checkpoint
+
+`62f2cdc` is on `main`. GitHub Actions run `40180451095` passed the web job and `swift test`. This checkpoint records what that commit contains. It does not add a new live-device run.
+
+- iMessage on Mac has a reviewed send path, contact import, and profile linking. Fixture tests cover send routing, uncertain-send reconciliation, vCard import, and link transfer. The Mac target includes Automation entitlements. A real read or send still requires Full Disk Access and Automation, and none was sent.
+- The local website can connect to the message server, include chats, refresh, search loaded messages, show photos, and confirm replies. Lock, reload, and leaving the page drop that session. Docker notes are in the setup guide. A repeated live browser delivery check was not recorded here.
+- WhatsApp setup in the app is four steps: Get started, Link WhatsApp, Choose chats, and Check delivery. Offline unlock works after an online sign-in on that device. Localhost hosting is scripted with `scripts/start-host.sh`, a loopback gateway, and an encrypted message-plane backup. Tailscale HTTPS was left for later.
+- Data-key rotation and field-level multi-device conflict merge are not implemented. Figma onboarding for every messaging service was not completed. The Mac desktop workspace is in the app. The iMessage send path remains the tested outbox from `62f2cdc`; message text is passed to Messages as an Apple event parameter, and a second competing sender was not kept.
+- `.cursor/settings.json` is uncommitted. It only enables the Figma editor plugin and is not an app setting.
