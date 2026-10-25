@@ -82,6 +82,7 @@ struct PersonDetailView: View {
   @Environment(\.dismiss) private var dismiss
   let party: Party
   var onSelect: (UUID) -> Void
+  var desktopEmbedded = false
   @State private var editingNote = false
   @State private var note = ""
   @State private var compactHeader = false
@@ -105,7 +106,7 @@ struct PersonDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
         HStack(spacing: 16) {
-          Avatar(name: displayName, size: 88)
+          Avatar(name: displayName, size: desktopEmbedded ? 64 : 88)
           VStack(alignment: .leading, spacing: 6) {
             Text(displayName).font(.title.bold())
             Text(contact == nil ? party.network.label : "Linked contact").foregroundStyle(RelayTheme.muted)
@@ -170,7 +171,8 @@ struct PersonDetailView: View {
             Button("Edit Note", systemImage: "square.and.pencil") { note = savedNote ?? ""; editingNote = true }.labelStyle(.iconOnly)
           }.padding(.horizontal, 20).padding(.vertical, 8).background(RelayTheme.background)
         }
-      }.background(RelayTheme.background).navigationTitle(displayName)
+      }.background(desktopEmbedded ? RelayTheme.surface : RelayTheme.background)
+      .navigationTitle(desktopEmbedded ? "" : displayName)
       .toolbar {
         if contact != nil {
           ToolbarItem(placement: .primaryAction) {

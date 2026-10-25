@@ -18,7 +18,7 @@ import SwiftUI
         .onChange(of: store.session?.account_id) { _, _ in
           Task { await reminders.refresh(agreements: store.locked ? [] : store.agreements) }
         }
-        .preferredColorScheme(nil)
+        .preferredColorScheme(designPreviewScheme)
         .overlay { if privacyCover && store.started { PrivacyView() } }
         .onChange(of: scenePhase) { _, phase in
           privacyCover = phase != .active
@@ -49,9 +49,21 @@ import SwiftUI
           }
         }
         #if os(macOS)
-          .frame(minWidth: 760, minHeight: 520)
+          .frame(minWidth: 1040, minHeight: 640)
         #endif
     }
+  }
+  private var designPreviewScheme: ColorScheme? {
+    #if DEBUG
+    guard UUID(uuidString: ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] ?? "") != nil else { return nil }
+    switch ProcessInfo.processInfo.environment["RELAY_PREVIEW_APPEARANCE"] {
+    case "light": return .light
+    case "dark": return .dark
+    default: return nil
+    }
+    #else
+    return nil
+    #endif
   }
   func syncIMessages() async {
     #if os(macOS)
@@ -60,7 +72,8 @@ import SwiftUI
   }
   var body: some Scene {
     #if os(macOS)
-      mainWindow.defaultSize(width: 1280, height: 820)
+      mainWindow.defaultSize(width: 1440, height: 940)
+        .windowStyle(.hiddenTitleBar)
         .commands {
           CommandGroup(after: .newItem) {
             Button("New Agreement") {
@@ -77,8 +90,8 @@ import SwiftUI
           }
         }
       Settings {
-        NavigationStack { SettingsView() }.environmentObject(store).environmentObject(model).environmentObject(reminders).frame(
-          width: 600, height: 650
+        MacPreferencesView().environmentObject(store).environmentObject(model).environmentObject(reminders).frame(
+          width: 960, height: 680
         ).tint(RelayTheme.primary)
       }
       MenuBarExtra("Relay", systemImage: "checkmark.bubble") {
