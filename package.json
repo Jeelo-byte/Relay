@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev apps/web --hostname 0.0.0.0",
     "build": "next build apps/web",
-    "test": "node --test packages/normalize/normalize.test.mjs backend/api.test.mjs",
+    "test": "node --test packages/normalize/normalize.test.mjs backend/api.test.mjs apps/web/lib/crypto.test.mjs",
     "normalize": "esbuild packages/normalize/index.ts --bundle --format=iife --global-name=RelayNormalize --target=es2020 --outfile=apple/RelayKit/Sources/RelayKit/Resources/normalize.js"
   },
   "dependencies": {

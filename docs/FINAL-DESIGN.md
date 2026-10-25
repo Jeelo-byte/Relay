@@ -43,3 +43,7 @@ These sketches are product context. They do not authorize external messages or c
 ## Work still tracked
 
 This document is a progress record, not a completion claim. Remaining work includes full web Matrix conversations/sending, Mac-to-device iMessage transport/sending, final Settings and onboarding layouts, live photo/media handling, synced person notes, account recovery and credential/key rotation, field-level sync reconciliation, remaining pipeline/provider features, full accessibility and platform verification, and final demo rehearsal. Account linking and physical-device signing still require the user's setup when implementation is ready.
+
+## Account security continuation · October 25
+
+On `codex/account-security`, account recovery, passphrase updates, and account deletion are now implemented with live API and native integration evidence. Recovery rotates the recovery code and revokes old device identities while retaining the data key; passphrase updates retain the recovery wrap and invalidate other sessions. Sign-in is serialized with these operations. The browser's decryption schema allowlist now accepts authenticated recap records, with dedicated interoperability and tamper tests. The context tracker is the current detailed evidence record; earlier open-work lists above describe the prior checkpoint.

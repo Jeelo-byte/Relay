@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import EventsWorkspace, { Icon, formatDue, initials } from "./EventsWorkspace";
-import { makeDemo } from "../lib/demo";
 import { PeopleWorkspace, SourceMessages, WebSettings } from "./WorkspacePanels";
-import RecapsWorkspace, { demoRecaps } from "./RecapsWorkspace";
+import RecapsWorkspace from "./RecapsWorkspace";
 import {
   derive,
   unwrap,
@@ -100,7 +100,7 @@ export default function Relay() {
     }
   }
   async function pull(s = session) {
-    if (!s || s.demo || pulling.current) return;
+    if (!s || pulling.current) return;
     const generation = epoch.current;
     pulling.current = true;
     setStatus("Syncing…");
@@ -125,6 +125,9 @@ export default function Relay() {
           try {
             const value = await openBlob(row, s.dek, s.account_id);
             if (generation !== epoch.current) return;
+            const sampleRoom = (id) => id.startsWith("!demo-") && id.endsWith(":relay.local");
+            if ((value.schema === "relay.recap/1" && sampleRoom(value.room_id)) ||
+              (value.source_room_ids?.length && value.source_room_ids.every(sampleRoom))) continue;
             changes.push(value);
             versions.current.set(row.row_id, row.version);
           } catch {
@@ -179,7 +182,7 @@ export default function Relay() {
     setError("");
   }
   useEffect(() => {
-    if (!session || session.demo) return;
+    if (!session) return;
     const timer = setInterval(() => pull(session), 30000);
     const focus = () => pull(session);
     window.addEventListener("focus", focus);
@@ -216,10 +219,6 @@ export default function Relay() {
         evidence_id: null,
         pending: false,
       });
-      if (currentSession.demo) {
-        setItems((old) => old.map((x) => x.id === a.id ? value : x));
-        return;
-      }
       const base = versions.current.get(a.id.toLowerCase()) || 0,
         envelope = await sealBlob(
           value,
@@ -318,7 +317,7 @@ export default function Relay() {
             {busy ? "Unlocking…" : "Unlock Agreements"}
           </button>
         </form>
-        <button className="sample-button" disabled={busy} onClick={() => { const demo = makeDemo(); setSession({ demo: true, handle: "Sample workspace" }); setItems(demo); setRecaps(demoRecaps(demo)); setDestination("Recaps"); setStatus("Sample workspace"); }}>Explore Sample Workspace</button>
+        <Link className="setup-guide-link" href="/docs">Set Up WhatsApp & Read the Guide</Link>
         <small>
           Create an account in the Relay native app first.
           <br />
@@ -332,12 +331,12 @@ export default function Relay() {
         <div className="brand"><Icon name="logo" /> Relay</div>
         <input aria-label="Search Relay" placeholder="Search Relay" value={query} onChange={(e) => { setQuery(e.target.value); setDestination("Events"); setBrowse(true); }} />
         {navigation()}
-        <div className="asideBottom"><div className="account-summary"><span className="avatar">{initials(session.handle)}</span><span><b>{session.handle}</b><small>{session.demo ? "Fictional sample" : "Personal workspace"}</small></span></div><button onClick={lock}>Lock Relay</button></div>
+        <div className="asideBottom"><div className="account-summary"><span className="avatar">{initials(session.handle)}</span><span><b>{session.handle}</b><small>Personal workspace</small></span></div><button onClick={lock}>Lock Relay</button></div>
       </aside>
       <main className="workspace-main">
-        <header className="workspace-toolbar"><h1>{browse ? "All Agreements" : destination}</h1><span className="toolbar-actions"><span className="source-badge" role="status">{status}</span><button onClick={() => pull()} disabled={busy || session.demo} aria-label="Sync agreements">↻</button><button onClick={lock} className="mobile-lock">Lock</button></span></header>
+        <header className="workspace-toolbar"><h1>{browse ? "All Agreements" : destination}</h1><span className="toolbar-actions"><span className="source-badge" role="status">{status}</span><button onClick={() => pull()} disabled={busy} aria-label="Sync agreements">↻</button><button onClick={lock} className="mobile-lock">Lock</button></span></header>
         {error && <p role="alert" className="error">{error}</p>}
-        {destination === "Recaps" && <RecapsWorkspace recaps={recaps} items={items} demo={session.demo} onSelectAgreement={setSelected} onSettings={() => navigate("Settings")} />}
+        {destination === "Recaps" && <RecapsWorkspace recaps={recaps} items={items} onSelectAgreement={setSelected} onSettings={() => navigate("Settings")} />}
         {destination === "Events" && !browse && <EventsWorkspace items={visible} onSelect={setSelected} onBrowse={openBrowse} />}
         {destination === "People" && <PeopleWorkspace items={items} onSelect={setSelected} />}
         {destination === "Messages" && <SourceMessages items={items} />}

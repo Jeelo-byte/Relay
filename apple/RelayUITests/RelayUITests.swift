@@ -11,6 +11,41 @@ final class RelayUITests: XCTestCase {
       sidebarLabel.tap()
     }
   }
+  func testCleanStartupAndLocalWorkspacePersistWithoutSamples() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["-ui-testing"]
+    app.launchEnvironment["RELAY_TEST_NAMESPACE"] = UUID().uuidString
+    app.launch()
+    let local = app.buttons["Start on This Device"]
+    XCTAssertTrue(local.waitForExistence(timeout: 15))
+    XCTAssertFalse(app.buttons["Explore Sample Workspace"].exists)
+    local.tap()
+    XCTAssertTrue(app.staticTexts["A little less to catch up on."].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["View sample photo collage"].exists)
+    app.terminate()
+    app.launch()
+    XCTAssertTrue(app.staticTexts["A little less to catch up on."].waitForExistence(timeout: 10))
+    XCTAssertFalse(local.exists)
+    navigate("Messages", in: app)
+    XCTAssertFalse(app.staticTexts["Maya Chen"].exists)
+  }
+  func testCreateAgreementIsInMessageContextMenu() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["-demo", "-ui-testing"]
+    app.launchEnvironment["RELAY_TEST_NAMESPACE"] = UUID().uuidString
+    app.launch()
+    navigate("Messages", in: app)
+    app.staticTexts["Maya Chen"].firstMatch.tap()
+    let message = app.staticTexts["Can you grab my ticket? I'll pay you back $40 by Friday."]
+    XCTAssertTrue(message.waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["Create Agreement"].exists)
+    message.press(forDuration: 1.2)
+    let create = app.buttons["Create Agreement"]
+    XCTAssertTrue(create.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["Copy Message"].exists)
+    create.tap()
+    XCTAssertTrue(app.buttons["Save Agreement"].waitForExistence(timeout: 5))
+  }
   func testRecapPhotosAndSources() throws {
     let app = XCUIApplication()
     app.launchArguments = ["-demo", "-ui-testing"]

@@ -31,7 +31,8 @@ test(
     const auth = randomBytes(32),
       account = randomUUID(),
       device = randomUUID(),
-      handle = "test_" + randomBytes(7).toString("hex");
+      handle = "test_" + randomBytes(7).toString("hex"),
+      recoveryProof = randomBytes(32);
     const wraps = ["passphrase", "recovery"].map((w) => ({
       key_version: 1,
       wrap_type: w,
@@ -43,7 +44,7 @@ test(
       kdf_salt: randomBytes(16).toString("base64url"),
       kdf_params: { mem: 67108864, ops: 3, alg: "argon2id13" },
       auth_verifier: hash(auth),
-      recovery_verifier: hash(randomBytes(32)),
+      recovery_verifier: hash(recoveryProof),
       wraps,
       device: { device_id: device, priority: 4 },
     });
@@ -131,5 +132,54 @@ test(
     );
     assert.equal(resurrection.status, 409);
     assert.equal((await resurrection.json()).current.deleted, true);
+    const beforeRotation = await (await request("sessions", "POST", {
+      handle, auth_key: auth.toString("base64url"), device: { device_id: randomUUID(), priority: 2 },
+    })).json();
+    const nextAuth = randomBytes(32), nextSalt = randomBytes(16).toString("base64url"), nextWrap = randomBytes(60).toString("base64url");
+    const replacement = { auth_key: auth.toString("base64url"), auth_verifier: hash(nextAuth),
+      kdf_salt: nextSalt, kdf_params: { alg: "argon2id13", ops: 3, mem: 67108864 }, wrapped_dek: nextWrap };
+    assert.equal((await request("account/passphrase", "PUT", { ...replacement, kdf_salt: "bad" }, token)).status, 400);
+    assert.equal((await request("account/passphrase", "PUT", { ...replacement, auth_key: randomBytes(32).toString("base64url") }, token)).status, 401);
+    assert.equal((await request("account/passphrase", "PUT", replacement, token)).status, 204);
+    assert.equal((await request("blobs", "GET", null, beforeRotation.token)).status, 401);
+    assert.equal((await request("blobs", "GET", null, token)).status, 200);
+    assert.equal((await request("account/passphrase", "PUT", replacement, token)).status, 401, "A stale proof must not overwrite the new credential");
+    const prelogin = await (await request("prelogin?handle=" + handle)).json();
+    assert.equal(prelogin.kdf_salt, nextSalt);
+    assert.equal((await request("sessions", "POST", { handle, auth_key: auth.toString("base64url"), device: { device_id: randomUUID(), priority: 1 } })).status, 401);
+    const afterRotation = await request("sessions", "POST", { handle, auth_key: nextAuth.toString("base64url"), device: { device_id: randomUUID(), priority: 1 } });
+    assert.equal(afterRotation.status, 200);
+    const updatedWraps = (await afterRotation.json()).wraps;
+    assert.equal(updatedWraps.find((w) => w.wrap_type === "passphrase").wrapped_dek, nextWrap);
+    assert.equal(updatedWraps.find((w) => w.wrap_type === "recovery").wrapped_dek, wraps[1].wrapped_dek);
+    const recoveryPreflight = await (await request("recovery/preflight?handle=" + handle)).json();
+    assert.equal(recoveryPreflight.account_id, account);
+    assert.equal(recoveryPreflight.wrapped_dek, wraps[1].wrapped_dek);
+    const fake1 = await (await request("recovery/preflight?handle=unknown_" + randomUUID().slice(0,8))).json();
+    assert.equal(Buffer.from(fake1.wrapped_dek, "base64url").length, 60);
+    assert.deepEqual(Object.keys(fake1).sort(), Object.keys(recoveryPreflight).sort());
+    const resetProof = randomBytes(32), resetAuth = randomBytes(32);
+    const resetWraps = wraps.map((w) => ({ ...w, wrapped_dek: randomBytes(60).toString("base64url") }));
+    const reset = { handle, account_id: account, recovery_proof: recoveryProof.toString("base64url"),
+      auth_verifier: hash(resetAuth), recovery_verifier: hash(resetProof), kdf_salt: randomBytes(16).toString("base64url"),
+      kdf_params: { alg: "argon2id13", ops: 3, mem: 67108864 }, wraps: resetWraps, device: { device_id: randomUUID(), priority: 4 } };
+    assert.equal((await request("recovery/reset", "POST", { ...reset, recovery_proof: randomBytes(32).toString("base64url") })).status, 401);
+    assert.equal((await request("recovery/reset", "POST", { ...reset, device: { device_id: device, priority: 4 } })).status, 401, "Recovery requires a new device identity");
+    const recovered = await request("recovery/reset", "POST", reset);
+    assert.equal(recovered.status, 200, await recovered.clone().text());
+    const recoveredToken = (await recovered.json()).token;
+    assert.equal((await request("blobs", "GET", null, token)).status, 401);
+    const recoveredBlobs = await (await request("blobs", "GET", null, recoveredToken)).json();
+    assert.equal(recoveredBlobs.items.find((r) => r.row_id === row).deleted, true);
+    assert.equal((await request("recovery/reset", "POST", { ...reset, device: { device_id: randomUUID(), priority: 2 } })).status, 401, "Old recovery proof must not be reusable");
+    const recoveredLogin = await request("sessions", "POST", { handle, auth_key: resetAuth.toString("base64url"), device: { device_id: randomUUID(), priority: 1 } });
+    assert.equal(recoveredLogin.status, 200);
+    assert.equal((await recoveredLogin.json()).wraps.find((w) => w.wrap_type === "recovery").wrapped_dek, resetWraps[1].wrapped_dek);
+    assert.equal((await request("account", "DELETE", { handle: "wrong_handle", auth_key: resetAuth.toString("base64url") }, recoveredToken)).status, 401);
+    assert.equal((await request("account", "DELETE", { handle, auth_key: randomBytes(32).toString("base64url") }, recoveredToken)).status, 401);
+    assert.equal((await request("blobs", "GET", null, recoveredToken)).status, 200);
+    assert.equal((await request("account", "DELETE", { handle, auth_key: resetAuth.toString("base64url") }, recoveredToken)).status, 204);
+    assert.equal((await request("blobs", "GET", null, recoveredToken)).status, 401);
+    assert.equal((await request("sessions", "POST", { handle, auth_key: resetAuth.toString("base64url"), device: { device_id: randomUUID(), priority: 1 } })).status, 401);
   },
 );

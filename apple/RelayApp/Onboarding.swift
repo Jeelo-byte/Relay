@@ -7,8 +7,7 @@ struct WelcomeView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 32) {
-        Label("Relay", systemImage: "checkmark.bubble.fill").font(.title2.weight(.bold))
-          .foregroundStyle(RelayTheme.primary)
+        RelayBrand()
         VStack(alignment: .leading, spacing: 16) {
           Text("Every promise.\nA little clearer.").font(.largeTitle.weight(.bold))
           Text("The things you agreed to, with the words that back them up.").font(.title3)
@@ -29,8 +28,6 @@ struct WelcomeView: View {
         VStack(spacing: 12) {
           Button("Create or Unlock Account") { showAccount = true }.buttonStyle(.borderedProminent)
             .controlSize(.large).frame(maxWidth: .infinity)
-          Button("Explore the Sample Workspace") { store.loadDemo() }.buttonStyle(.bordered)
-            .controlSize(.large)
           Button("Start on This Device") { store.beginManual() }.font(.subheadline)
         }.frame(maxWidth: .infinity)
         Text(
@@ -62,6 +59,7 @@ struct AccountView: View {
   @State private var message: String?
   @State private var recovery: String?
   @State private var pending: AccountSession?
+  @State private var recover = false
   var body: some View {
     NavigationStack {
       Group {
@@ -124,6 +122,9 @@ struct AccountView: View {
                 ).font(.caption).foregroundStyle(RelayTheme.warning)
               }
             }
+            if !create {
+              Section { Button("Use Recovery Code") { recover = true } }
+            }
           }.formStyle(.grouped)
         }
       }.navigationTitle(recovery == nil ? "Your Relay Account" : "Recovery Code").toolbar {
@@ -132,6 +133,8 @@ struct AccountView: View {
         }
       }
     }.interactiveDismissDisabled(busy || recovery != nil)
+      .sheet(isPresented: $recover) { AccountRecoveryView(handle: handle, server: server) }
+      .onChange(of: store.session?.token) { _, token in if token != nil && !store.locked && pending == nil { dismiss() } }
       .onAppear {
         if let s = store.session {
           handle = s.handle

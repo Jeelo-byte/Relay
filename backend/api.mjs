@@ -95,7 +95,7 @@ export async function handleAPI(request) {
         fail(429, "rate_limited", "Too many attempts. Try again later.", true);
     }
     if (
-      ["prelogin", "accounts", "sessions"].includes(path) &&
+      ["prelogin", "accounts", "sessions", "recovery/preflight", "recovery/reset"].includes(path) &&
       method !== "DELETE"
     ) {
       // IP headers are trusted only behind the hosting proxy. Hash before persistence.
@@ -131,24 +131,72 @@ export async function handleAPI(request) {
         },
       });
     }
-    async function newSession(account, device) {
+    if (path === "recovery/preflight" && method === "GET") {
+      const handle = (url.searchParams.get("handle") || "").toLowerCase();
+      if (!validHandle(handle)) fail(400, "bad_request", "Use your Relay handle.");
+      const secret = process.env.PRELOGIN_HMAC_SECRET;
+      if (!secret) fail(503, "unavailable", "Account security is not configured.");
+      const [row] = await sql`SELECT a.account_id,w.wrapped_dek FROM accounts a JOIN key_wraps w USING(account_id)
+        WHERE a.handle=${handle} AND w.wrap_type='recovery' AND w.key_version=1`;
+      // Unknown handles return the same response shape and deterministic fake material.
+      const fake = (label) => createHmac("sha512", secret).update(label + "|" + handle).digest();
+      const id = fake("recovery-id").subarray(0,16); id[6] = (id[6] & 15) | 64; id[8] = (id[8] & 63) | 128;
+      const h = id.toString("hex"), fakeID = `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+      return respond({ account_id: row?.account_id || fakeID,
+        wrapped_dek: row ? Buffer.from(row.wrapped_dek).toString("base64url") : fake("recovery-wrap").subarray(0,60).toString("base64url") });
+    }
+    if (path === "recovery/reset" && method === "POST") {
+      if (!validHandle(body.handle) || !uuid(body.account_id) || !validDevice(body.device) ||
+        decode(body.recovery_proof).length !== 32 || decode(body.auth_verifier).length !== 32 ||
+        decode(body.recovery_verifier).length !== 32 || decode(body.kdf_salt).length !== 16 || !validateWraps(body.wraps) ||
+        body.kdf_params?.alg !== "argon2id13" || body.kdf_params?.ops !== 3 || body.kdf_params?.mem !== 67108864)
+        fail(400, "bad_request", "Invalid recovery parameters.");
+      await limit(hash(Buffer.from(body.handle)).toString("hex") + ":recovery", 10, 3600);
+      const token = randomBytes(32).toString("base64url");
+      const passWrap = body.wraps.find((w) => w.wrap_type === "passphrase");
+      const recoveryWrap = body.wraps.find((w) => w.wrap_type === "recovery");
+      const rows = await sql`WITH changed AS (
+        UPDATE accounts SET kdf_salt=${bytea(decode(body.kdf_salt))},kdf_params=${JSON.stringify(body.kdf_params)},
+          auth_verifier=${bytea(decode(body.auth_verifier))},recovery_verifier=${bytea(decode(body.recovery_verifier))},failed_logins=0,locked_until=NULL
+        WHERE account_id=${body.account_id} AND handle=${body.handle}
+          AND recovery_verifier=${bytea(hash(decode(body.recovery_proof)))}
+          AND NOT EXISTS (SELECT 1 FROM devices WHERE device_id=${body.device.device_id})
+        RETURNING account_id
+      ), wraps AS (
+        UPDATE key_wraps SET wrapped_dek=CASE WHEN wrap_type='passphrase' THEN ${bytea(decode(passWrap.wrapped_dek))}::bytea ELSE ${bytea(decode(recoveryWrap.wrapped_dek))}::bytea END
+        WHERE account_id IN (SELECT account_id FROM changed) AND key_version=1 RETURNING id
+      ), expired AS (
+        DELETE FROM sessions WHERE account_id IN (SELECT account_id FROM changed) RETURNING token_hash
+      ), revoked AS (
+        UPDATE devices SET revoked_at=COALESCE(revoked_at,now()) WHERE account_id IN (SELECT account_id FROM changed) RETURNING device_id
+      ), released AS (
+        DELETE FROM leases WHERE account_id IN (SELECT account_id FROM changed) RETURNING lease_key
+      ), device AS (
+        INSERT INTO devices(device_id,account_id,priority,last_seen_at)
+        SELECT ${body.device.device_id},account_id,${body.device.priority},now() FROM changed RETURNING account_id,device_id
+      ), fresh AS (
+        INSERT INTO sessions(token_hash,account_id,device_id,expires_at)
+        SELECT ${bytea(hash(Buffer.from(token)))},account_id,device_id,now()+interval '30 days' FROM device RETURNING account_id
+      ) SELECT account_id FROM fresh`;
+      if (!rows.length) fail(401, "bad_recovery", "Handle or recovery code is incorrect, or this recovery code was already replaced.");
+      return respond({ token, account_id: rows[0].account_id });
+    }
+    async function newSession(account, device, verifier) {
       const token = randomBytes(32).toString("base64url");
       const expires = new Date(Date.now() + 30 * 86400000).toISOString();
-      const existing =
-        await sql`SELECT account_id,revoked_at FROM devices WHERE device_id=${device.device_id}`;
-      if (
-        existing.length &&
-        (existing[0].account_id !== account || existing[0].revoked_at)
-      )
-        fail(
-          401,
-          "device_revoked",
-          "This device was removed. Sign in with a new device identity.",
-        );
-      await sql.transaction([
-        sql`INSERT INTO devices(device_id,account_id,priority,last_seen_at) VALUES(${device.device_id},${account},${device.priority},now()) ON CONFLICT(device_id) DO UPDATE SET last_seen_at=now(),priority=excluded.priority`,
-        sql`INSERT INTO sessions(token_hash,account_id,device_id,expires_at) VALUES(${bytea(hash(Buffer.from(token)))},${account},${device.device_id},${expires})`,
-      ]);
+      // Serialize sign-in with recovery, credential changes, and deletion. A
+      // password verified before a reset cannot mint a session after that reset.
+      const rows = await sql`WITH authorized AS (
+        SELECT account_id FROM accounts WHERE account_id=${account} AND auth_verifier=${bytea(verifier)} FOR UPDATE
+      ), device AS (
+        INSERT INTO devices(device_id,account_id,priority,last_seen_at)
+        SELECT ${device.device_id},account_id,${device.priority},now() FROM authorized
+        ON CONFLICT(device_id) DO UPDATE SET last_seen_at=now(),priority=excluded.priority
+          WHERE devices.account_id=excluded.account_id AND devices.revoked_at IS NULL
+        RETURNING account_id,device_id
+      ) INSERT INTO sessions(token_hash,account_id,device_id,expires_at)
+        SELECT ${bytea(hash(Buffer.from(token)))},account_id,device_id,${expires}::timestamptz FROM device RETURNING account_id`;
+      if (!rows.length) fail(401, "credentials_changed", "Your credentials changed or this device was removed. Sign in again with a new device identity.");
       return { token, expires_at: expires };
     }
     if (path === "accounts" && method === "POST") {
@@ -178,7 +226,7 @@ export async function handleAPI(request) {
           fail(409, "handle_taken", "That handle is taken. Choose another.");
         throw e;
       }
-      return respond(await newSession(body.account_id, body.device), 201);
+      return respond(await newSession(body.account_id, body.device, decode(body.auth_verifier)), 201);
     }
     if (path === "sessions" && method === "POST") {
       if (
@@ -202,7 +250,7 @@ export async function handleAPI(request) {
       const wraps =
         await sql`SELECT key_version,wrap_type,wrapped_dek FROM key_wraps WHERE account_id=${a.account_id}`;
       return respond({
-        ...(await newSession(a.account_id, body.device)),
+        ...(await newSession(a.account_id, body.device, Buffer.from(a.auth_verifier))),
         account_id: a.account_id,
         wraps: wraps.map((w) => ({
           ...w,
@@ -227,6 +275,45 @@ export async function handleAPI(request) {
     if (path === "devices" && method === "GET") {
       const devices = await sql`SELECT device_id,priority,created_at,last_seen_at,revoked_at FROM devices WHERE account_id=${account} ORDER BY created_at`;
       return respond({ devices: devices.map((d) => ({ ...d, current: d.device_id === session.device_id })) });
+    }
+    if (path === "account/passphrase" && method === "PUT") {
+      await limit(account + ":security", 10, 3600);
+      if (decode(body.auth_key).length !== 32 || decode(body.auth_verifier).length !== 32 ||
+        decode(body.kdf_salt).length !== 16 || decode(body.wrapped_dek).length !== 60 ||
+        body.kdf_params?.alg !== "argon2id13" || body.kdf_params?.ops !== 3 || body.kdf_params?.mem !== 67108864)
+        fail(400, "bad_request", "Invalid passphrase update parameters.");
+      // Recheck both the proof and live session inside the atomic write. Concurrent
+      // updates cannot silently replace a more recent credential or wrap.
+      const changed = await sql`WITH changed AS (
+        UPDATE accounts SET kdf_salt=${bytea(decode(body.kdf_salt))},kdf_params=${JSON.stringify(body.kdf_params)},
+          auth_verifier=${bytea(decode(body.auth_verifier))},failed_logins=0,locked_until=NULL
+        WHERE account_id=${account} AND auth_verifier=${bytea(hash(decode(body.auth_key)))}
+          AND EXISTS (SELECT 1 FROM sessions s JOIN devices d USING(device_id)
+            WHERE s.token_hash=${bytea(hash(Buffer.from(token)))} AND s.expires_at>now() AND d.revoked_at IS NULL)
+        RETURNING account_id
+      ), wrapped AS (
+        UPDATE key_wraps SET wrapped_dek=${bytea(decode(body.wrapped_dek))}
+        WHERE account_id IN (SELECT account_id FROM changed) AND wrap_type='passphrase' AND key_version=1 RETURNING id
+      ), expired AS (
+        DELETE FROM sessions WHERE account_id IN (SELECT account_id FROM changed)
+          AND token_hash<>${bytea(hash(Buffer.from(token)))} RETURNING token_hash
+      ), released AS (
+        DELETE FROM leases WHERE account_id IN (SELECT account_id FROM changed) RETURNING lease_key
+      ) SELECT account_id FROM changed`;
+      if (!changed.length) fail(401, "bad_credentials", "Current passphrase is incorrect or your session changed. Unlock and try again.");
+      return respond(null, 204);
+    }
+    if (path === "account" && method === "DELETE") {
+      await limit(account + ":security", 10, 3600);
+      if (!validHandle(body.handle) || decode(body.auth_key).length !== 32)
+        fail(400, "bad_request", "Confirm your handle and current passphrase.");
+      const removed = await sql`DELETE FROM accounts WHERE account_id=${account} AND handle=${body.handle}
+        AND auth_verifier=${bytea(hash(decode(body.auth_key)))}
+        AND EXISTS (SELECT 1 FROM sessions s JOIN devices d USING(device_id)
+          WHERE s.token_hash=${bytea(hash(Buffer.from(token)))} AND s.expires_at>now() AND d.revoked_at IS NULL)
+        RETURNING account_id`;
+      if (!removed.length) fail(401, "bad_credentials", "Handle or current passphrase is incorrect, or your session changed.");
+      return respond(null, 204);
     }
     const deviceMatch = path.match(/^devices\/([0-9a-f-]+)$/i);
     if (deviceMatch && method === "DELETE") {

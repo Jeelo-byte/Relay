@@ -113,9 +113,16 @@ public enum MessageEventParser {
       return nil
     }
     let type = event["type"] as? String ?? ""
-    let content = event["content"] as? [String: Any] ?? [:]
+    var content = event["content"] as? [String: Any] ?? [:]
+    let waitingForKeys = content["fi.mau.whatsapp.undecryptable"] as? Bool == true
+    if waitingForKeys,
+      let edit = ((event["unsigned"] as? [String: Any])?["m.relations"] as? [String: Any])?["m.replace"] as? [String: Any],
+      edit["sender"] as? String == sender,
+      let updated = (edit["content"] as? [String: Any])?["m.new_content"] as? [String: Any] {
+      content = updated
+    }
     let msgtype = content["msgtype"] as? String ?? ""
-    guard type != "m.room.redaction", msgtype != "m.notice", !sender.contains("bot:") else {
+    guard type != "m.room.redaction", (msgtype != "m.notice" || waitingForKeys), !sender.contains("bot:") else {
       return nil
     }
     let relation = content["m.relates_to"] as? [String: Any] ?? [:]
@@ -132,6 +139,11 @@ public enum MessageEventParser {
       room: room.id, event: eventID, sender: party, text: content["body"] as? String ?? "",
       ts: (event["origin_server_ts"] as? NSNumber)?.int64Value ?? Clock.ms, network: network)
     m.service = service
+    if waitingForKeys && msgtype == "m.notice" {
+      m.kind = "unsupported"
+      m.text = "Waiting for WhatsApp to decrypt this message."
+      return m
+    }
     if type == "m.room.encrypted" {
       m.kind = "encrypted"
       m.text = "Encrypted room · not supported by this ingestion mode"

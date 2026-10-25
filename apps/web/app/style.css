@@ -319,6 +319,8 @@ footer {
 :root { --secondary-surface:#faf7f3; --selection:#f1e5e5; --accent-text:#500000; }
 .design-icon { display:inline-block; flex-shrink:0; vertical-align:middle; }
 .brand { display:flex; align-items:center; gap:10px; color:var(--accent-text); font-size:28px; margin:0 0 24px; }
+.relay-logo { display:inline-block; width:1.5em; height:1.5em; flex-shrink:0; vertical-align:middle; background:currentColor; mask:url('/brand/relay-mark.svg') center / contain no-repeat; -webkit-mask:url('/brand/relay-mark.svg') center / contain no-repeat; }
+.guide-brand { display:inline-flex; align-items:center; gap:4px; color:var(--accent-text); }
 .shell { grid-template-columns:240px minmax(0,1fr); }
 aside { background:var(--secondary-surface); border:0; height:100dvh; position:sticky; top:0; padding:28px 20px 20px; }
 aside input { border:0; margin-bottom:24px; font-size:14px; }
@@ -477,3 +479,62 @@ aside input { border:0; margin-bottom:24px; font-size:14px; }
 .photo-gallery::backdrop { background:#171412bb; }
 @media(max-width:1100px) { .recap-layout { grid-template-columns:1fr; } }
 @media(max-width:750px) { .recaps-workspace { padding:20px; } .recap-greeting h2 { font-size:22px; } .recap-greeting { align-items:start; } .recap-glance { margin-top:12px; } .recap-filters > input { max-width:none; } }
+
+/* Setup documentation uses the same semantic palette as the workspace. */
+.setup-guide { max-width: 1280px; margin: 0 auto; padding: 0 40px; }
+.guide-header { display: flex; align-items: center; gap: 28px; min-height: 100px; border-bottom: 1px solid var(--line); }
+.guide-header > :last-child { margin-left: auto; }
+.setup-guide a, .setup-guide-link { color: var(--accent-text, var(--primary)); text-underline-offset: 4px; }
+.setup-guide a:focus-visible, .setup-guide-link:focus-visible, .setup-guide summary:focus-visible { outline: 3px solid var(--accent-text, var(--primary)); outline-offset: 4px; border-radius: 4px; }
+.guide-brand { font-size: 26px; font-weight: 750; text-decoration: none; }
+.guide-header > span { color: var(--muted); font-size: 14px; }
+.guide-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 64px; }
+.guide-nav { align-self: start; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 5px; padding: 44px 0; font-size: 14px; }
+.guide-nav p { font-size: 11px; letter-spacing: 1.4px; color: var(--muted); }
+.guide-nav a { min-height: 44px; padding: 11px 0; text-decoration: none; }
+.guide-nav a:hover { text-decoration: underline; }
+.guide-layout main { min-width: 0; max-width: 760px; }
+.guide-intro { padding: 60px 0 48px; border-bottom: 1px solid var(--line); }
+.guide-intro h1 { font-size: clamp(32px, 4vw, 48px); margin: 24px 0; line-height: 1.12; letter-spacing: -1.2px; }
+.guide-intro p { font-size: 19px; color: var(--muted); max-width: 620px; }
+.guide-start { display: inline-flex; align-items: center; min-height: 48px; margin-top: 16px; font-weight: 650; }
+.guide-layout section { padding: 36px 0; border-bottom: 1px solid var(--line); scroll-margin-top: 24px; }
+.guide-layout section h2 { margin-bottom: 20px; font-size: 26px; }
+.guide-layout section p, .guide-layout li { line-height: 1.7; }
+.guide-layout li { margin-bottom: 16px; padding-left: 8px; }
+.guide-layout ol { padding-left: 24px; }
+.guide-layout details { padding: 18px 0; border-bottom: 1px solid var(--line); }
+.guide-layout summary { cursor: pointer; font-weight: 600; min-height: 28px; }
+.guide-layout details p { margin: 16px 0 0; color: var(--muted); }
+.guide-reference { margin-top: 28px; }
+.guide-footer { padding: 32px 0 48px; display: flex; justify-content: space-between; gap: 24px; }
+.setup-guide-link { display: inline-flex; min-height: 44px; align-items: center; margin-top: 16px; font-size: 15px; }
+@media (max-width: 760px) {
+  .setup-guide { padding: 0 24px; }
+  .guide-header { min-height: 80px; gap: 16px; }
+  .guide-header > span { display: none; }
+  .guide-layout { display: flex; flex-direction: column; gap: 0; }
+  .guide-nav { position: static; padding: 20px 0 0; flex-flow: row wrap; gap: 0 20px; }
+  .guide-nav p { flex-basis: 100%; margin: 0; }
+  .guide-nav a { font-size: 13px; }
+  .guide-intro { padding-top: 32px; }
+  .guide-intro p { font-size: 17px; }
+}
+
+/* A short arrival cue on page changes; data refreshes keep their current position. */
+@keyframes relay-page-enter {
+  from { opacity: .4; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.workspace-main > :is(.recaps-workspace, .events-workspace, .split-workspace, .list),
+.guide-layout, .welcome {
+  animation: relay-page-enter 160ms ease-out;
+}
+.primary-navigation button, .mobile-navigation button, .settings-card {
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-main > :is(.recaps-workspace, .events-workspace, .split-workspace, .list),
+  .guide-layout, .welcome { animation: none; }
+  .primary-navigation button, .mobile-navigation button, .settings-card { transition: none; }
+}

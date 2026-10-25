@@ -8,6 +8,50 @@ public struct MatrixSession: Codable, Sendable {
 public final class MatrixClient {
   public let session: MatrixSession
   public init(session: MatrixSession) { self.session = session }
+  static func imageRequest(session: MatrixSession, mxc: String) throws -> URLRequest {
+    guard let media = URLComponents(string: mxc), media.scheme == "mxc",
+      let host = media.host, !host.isEmpty, media.user == nil, media.password == nil,
+      media.query == nil, media.fragment == nil,
+      media.path.split(separator: "/").count == 1 else { throw VaultError.invalidEnvelope }
+    let localHTTP = session.server.scheme == "http"
+      && ["localhost", "127.0.0.1", "::1"].contains(session.server.host ?? "")
+    guard session.server.scheme == "https" || localHTTP else {
+      throw APIError(status: 0, code: "https_required", message: "Use an HTTPS message server.", current: nil)
+    }
+    let mediaServer = host + (media.port.map { ":\($0)" } ?? "")
+    let path = "/_matrix/client/v1/media/download/\(segment(mediaServer))/\(segment(String(media.path.dropFirst())))"
+    guard let url = URL(string: session.server.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + path) else {
+      throw VaultError.invalidEnvelope
+    }
+    var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 35)
+    request.setValue("Bearer \(session.access_token)", forHTTPHeaderField: "Authorization")
+    return request
+  }
+
+  public func imageData(mxc: String) async throws -> Data {
+    let request = try Self.imageRequest(session: session, mxc: mxc)
+    // Keep private chat photos out of the shared URL cache and bound each download.
+    let transport = URLSession(configuration: .ephemeral)
+    defer { transport.invalidateAndCancel() }
+    let (bytes, response) = try await transport.bytes(for: request)
+    guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+      response.mimeType?.hasPrefix("image/") == true else {
+      throw APIError(status: (response as? HTTPURLResponse)?.statusCode ?? 0,
+        code: "image_unavailable", message: "This photo could not be loaded. Try again.", current: nil)
+    }
+    let limit = 20 * 1024 * 1024
+    guard response.expectedContentLength <= limit else {
+      throw APIError(status: 0, code: "image_too_large", message: "View photos larger than 20 MB in WhatsApp.", current: nil)
+    }
+    var data = Data()
+    for try await byte in bytes {
+      guard data.count < limit else {
+        throw APIError(status: 0, code: "image_too_large", message: "View photos larger than 20 MB in WhatsApp.", current: nil)
+      }
+      data.append(byte)
+    }
+    return data
+  }
   static func request(
     server: URL, path: String, token: String? = nil, method: String = "GET",
     body: [String: Any]? = nil, version: String = "v3"
@@ -68,7 +112,7 @@ public final class MatrixClient {
   static func events(_ object: [String: Any], key: String) -> [[String: Any]] {
     (object[key] as? [String: Any])?["events"] as? [[String: Any]] ?? []
   }
-  public func discover() async throws -> [ChatRoom] {
+  public func discover(joinWhatsAppInvites: Bool = false) async throws -> [ChatRoom] {
     let filter: [String: Any] = [
       "room": [
         "timeline": ["limit": 0],
@@ -82,6 +126,28 @@ public final class MatrixClient {
     let sync = try await Self.request(
       server: session.server, path: "sync?timeout=0&filter=\(Self.query(filter))",
       token: session.access_token)
+    if joinWhatsAppInvites {
+      let invited = (sync["rooms"] as? [String: Any])?["invite"] as? [String: [String: Any]] ?? [:]
+      var joinedInvite = false
+      // Joining large accounts is rate limited by Synapse. Import gradually without
+      // blocking already connected chats or repeatedly presenting alerts.
+      for (id, room) in invited.sorted(by: { $0.key < $1.key }) {
+        // Only accept invitations from our configured WhatsApp bridge, never arbitrary rooms.
+        guard Self.events(room, key: "invite_state").contains(where: {
+          $0["type"] as? String == "m.room.member"
+            && $0["state_key"] as? String == session.user_id
+            && $0["sender"] as? String == MessagingService.whatsapp.bot
+            && ($0["content"] as? [String: Any])?["membership"] as? String == "invite"
+        }) else { continue }
+        do {
+          _ = try await Self.request(server: session.server, path: "join/\(Self.segment(id))",
+            token: session.access_token, method: "POST", body: [:])
+        } catch let error as APIError where error.status == 429 { break }
+        joinedInvite = true
+        break
+      }
+      if joinedInvite { return try await discover() }
+    }
     let joined = (sync["rooms"] as? [String: Any])?["join"] as? [String: [String: Any]] ?? [:]
     return joined.map { id, room in
       let events = Self.events(room, key: "state")
@@ -93,7 +159,8 @@ public final class MatrixClient {
         ($0["content"] as? [String: Any])?["displayname"] as? String
       }
       let fallback =
-        id + " " + members.compactMap { $0["state_key"] as? String }.joined(separator: " ")
+        id + " " + members.compactMap { $0["state_key"] as? String }
+          .filter { !$0.contains("bot:") }.joined(separator: " ")
       let service = MessageEventParser.service(state: events, fallback: fallback)
       var r = ChatRoom(
         id: id,

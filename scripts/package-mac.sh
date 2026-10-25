@@ -8,6 +8,7 @@ swift build
 build_path="$(swift build --show-bin-path)"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$build_path/Relay" "$app_path/Contents/MacOS/Relay"
+cp docs/brand/Relay.icns "$app_path/Contents/Resources/Relay.icns"
 for bundle_path in "$build_path"/*.bundle; do
   [ -d "$bundle_path" ] && cp -R "$bundle_path" "$app_path/Contents/Resources/"
 done
@@ -15,7 +16,7 @@ done
 import plistlib, sys
 with open(sys.argv[1], 'wb') as f:
     plistlib.dump({'CFBundleExecutable':'Relay', 'CFBundleIdentifier':'app.relay.agreements',
-      'CFBundleName':'Relay', 'CFBundlePackageType':'APPL', 'CFBundleShortVersionString':'0.2.0',
+      'CFBundleName':'Relay', 'CFBundleIconFile':'Relay', 'CFBundlePackageType':'APPL', 'CFBundleShortVersionString':'0.2.0',
       'CFBundleVersion':'2', 'LSMinimumSystemVersion':'14.0',
       'NSHighResolutionCapable':True, 'NSFaceIDUsageDescription':'Unlock your private Relay agreements.'}, f)
 PY
