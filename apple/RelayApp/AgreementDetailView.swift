@@ -69,11 +69,7 @@ struct AgreementDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
               Label("A Change to Review", systemImage: "arrow.triangle.2.circlepath").font(
                 .headline)
-              Text(
-                event.field_path == "obligations[0].due"
-                  ? "The conversation suggests a new due date: \(event.new ?? "Not stated")."
-                  : "The conversation suggests a status change."
-              ).font(.body)
+              Text(changeDescription(event)).font(.body)
               HStack {
                 Button("Apply Change") { store.applyChange(id, event.id, apply: true) }.buttonStyle(
                   .borderedProminent)
@@ -150,6 +146,23 @@ struct AgreementDetailView: View {
         }
       }.padding(24).frame(maxWidth: 800, alignment: .leading).frame(maxWidth: .infinity)
     }
+  }
+  func changeDescription(_ event: TimelineEvent) -> String {
+    guard let value = event.new else { return "Review the source messages, then edit this agreement." }
+    if event.field_path == "lifecycle" { return "Suggested status: \(Lifecycle(rawValue: value)?.label ?? value)." }
+    if event.field_path?.hasSuffix(".due") == true {
+      let due = try? JSONDecoder().decode(Due.self, from: Data(value.utf8))
+      return "Suggested due date: \(due?.formatted ?? value)."
+    }
+    if event.field_path?.hasSuffix(".amount") == true,
+      let money = try? JSONDecoder().decode(Money.self, from: Data(value.utf8)) {
+      return "Suggested amount: \(money.formatted)."
+    }
+    if event.field_path?.hasSuffix(".place") == true,
+      let place = try? JSONDecoder().decode(TextTerm.self, from: Data(value.utf8)) {
+      return "Suggested place: \(place.text)."
+    }
+    return "Suggested change: \(value)."
   }
   func actions(_ a: Agreement) -> some View {
     ViewThatFits(in: .horizontal) {

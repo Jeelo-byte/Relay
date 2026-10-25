@@ -4,7 +4,7 @@ import SwiftUI
 struct AgreementEditor: View {
   @Environment(\.dismiss) var dismiss
   @State var agreement: Agreement
-  var onSave: (Agreement) -> Void
+  var onSave: (Agreement) -> Bool
   @State private var amounts: [UUID: String] = [:]
   @State private var currencies: [UUID: String] = [:]
   @State private var validation: String?
@@ -93,6 +93,8 @@ struct AgreementEditor: View {
         Button("Keep Editing", role: .cancel) {}
       }
     }.interactiveDismissDisabled(changed).presentationDetents([.large])
+      .onChange(of: agreement) { _, _ in changed = true }
+
       .onAppear {
         if !agreement.parties.contains(where: { !$0.is_self }) {
           agreement.parties.append(Party(id: "manual:" + UUID().uuidString, name: ""))
@@ -105,7 +107,7 @@ struct AgreementEditor: View {
           let o = agreement.obligations[i]
           if let m = o.amount {
             amounts[o.id] =
-              NSDecimalNumber(value: Double(m.minor) / pow(10, Double(m.exponent))).stringValue
+              AgreementEditing.amountText(m)
             currencies[o.id] = m.currency
           }
         }
@@ -128,6 +130,11 @@ struct AgreementEditor: View {
           agreement.parties.first { $0.id != value }?.id ?? ""
         changed = true
       }
+      Picker("To Whom", selection: $agreement.obligations[i].obligee_party_id) {
+        ForEach(agreement.parties.filter { $0.id != agreement.obligations[i].obligor_party_id }) {
+          Text($0.display_name_snapshot.isEmpty ? "Other Person" : $0.display_name_snapshot).tag($0.id)
+        }
+      }
       HStack {
         TextField(
           "Amount (Optional)",
@@ -146,33 +153,18 @@ struct AgreementEditor: View {
               changed = true
             })
         ) {
-          ForEach(["USD", "EUR", "GBP", "JPY", "INR", "CAD", "AUD", "KWD"], id: \.self) {
+          ForEach(Locale.commonISOCurrencyCodes.sorted(), id: \.self) {
             Text($0).tag($0)
           }
         }.labelsHidden().frame(maxWidth: 120)
       }
-      Toggle(
-        "Has a Due Date",
-        isOn: Binding(
-          get: { agreement.obligations[i].due != nil },
-          set: {
-            agreement.obligations[i].due = $0 ? Due(date: DemoData.date(1)) : nil
-            changed = true
-          }))
-      if agreement.obligations[i].due != nil {
-        DatePicker(
-          "Due Date",
-          selection: Binding(
-            get: { agreement.obligations[i].due?.displayDate ?? Date() },
-            set: {
-              let f = DateFormatter()
-              f.dateFormat = "yyyy-MM-dd"
-              f.locale = Locale(identifier: "en_US_POSIX")
-              agreement.obligations[i].due = Due(date: f.string(from: $0))
-              changed = true
-            }), displayedComponents: .date)
-        Text("Calendar date · stays the same when you travel").font(.caption).foregroundStyle(
-          RelayTheme.muted)
+      DueEditor(due: $agreement.obligations[i].due)
+      TextField("Repeat (Optional)", text: Binding(
+        get: { agreement.obligations[i].recurrence?.raw_text ?? "" },
+        set: { agreement.obligations[i].recurrence = $0.isEmpty ? nil : Recurrence(rawText: $0) }))
+      if agreement.obligations[i].recurrence != nil {
+        Text("Repeat information is kept for reference. Marking done completes this obligation; it does not create the next occurrence.")
+          .font(.caption).foregroundStyle(RelayTheme.muted)
       }
       TextField(
         "Place (Optional)",
@@ -199,50 +191,70 @@ struct AgreementEditor: View {
     }
   }
   func save() {
-    agreement.title = agreement.title.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !agreement.title.isEmpty, agreement.title.count <= 80 else {
-      validation = "Give this agreement a title of 1–80 characters."
-      return
-    }
-    guard let person = agreement.parties.first(where: { !$0.is_self }),
-      !person.display_name_snapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    else {
-      validation = "Add the other person’s name."
-      return
-    }
-    for i in agreement.obligations.indices {
-      var o = agreement.obligations[i]
-      o.what = o.what.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !o.what.isEmpty, o.what.count <= 140, o.obligor_party_id != o.obligee_party_id else {
-        validation = "Describe each obligation in 1–140 characters and choose who owes it."
-        return
-      }
-      let raw = (amounts[o.id] ?? "").trimmingCharacters(in: .whitespaces)
-      if !raw.isEmpty {
-        let currency = currencies[o.id] ?? "USD"
-        let exponent = currency == "JPY" ? 0 : (currency == "KWD" ? 3 : 2)
-        let pattern = "^[0-9]+(?:[.,][0-9]{1,\(max(1,exponent))})?$"
-        guard raw.range(of: pattern, options: .regularExpression) != nil,
-          let d = Decimal(string: raw.replacingOccurrences(of: ",", with: ".")), d >= 0,
-          d < Decimal(1_000_000_000_000)
-        else {
-          validation = "Enter a valid positive amount with up to \(exponent) decimal places."
-          return
+    do {
+      var value = agreement
+      for i in value.obligations.indices {
+        let o = value.obligations[i]
+        value.obligations[i].amount = try AgreementEditing.amount(amounts[o.id] ?? "", currency: currencies[o.id] ?? "USD")
+        if value.lifecycle == .fulfilled {
+          value.obligations[i].status = "done"; value.obligations[i].done_at = Clock.ms
+        } else if value.lifecycle == .cancelled {
+          value.obligations[i].status = "cancelled"; value.obligations[i].done_at = nil
         }
-        let minor = NSDecimalNumber(decimal: d * pow(Decimal(10), exponent)).int64Value
-        o.amount = Money(minor: minor, currency: currency, exponent: exponent, raw: raw)
-      } else {
-        o.amount = nil
       }
-      if agreement.lifecycle == .fulfilled {
-        o.status = "done"
-        o.done_at = Clock.ms
-      }
-      agreement.obligations[i] = o
+      value = try AgreementEditing.validate(value)
+      value.review_state = .accepted
+      value.timeline.append(TimelineEvent("user_edit"))
+      if onSave(value) { dismiss() } else { validation = "Your changes could not be saved. Please try again." }
+    } catch { validation = error.localizedDescription }
+  }
+}
+
+private struct DueEditor: View {
+  @Binding var due: Due?
+  private var kind: String { due?.type ?? "none" }
+  var body: some View {
+    Picker("Due", selection: Binding(get: { kind }, set: setKind)) {
+      Text("Not stated").tag("none")
+      Text("Calendar date").tag("date")
+      Text("Date and time").tag("instant")
+      Text("Date range").tag("range")
     }
-    agreement.review_state = .accepted
-    agreement.timeline.append(TimelineEvent("user_edit"))
-    onSave(agreement)
-    dismiss()
+    if kind == "instant" {
+      DatePicker("Due date and time", selection: Binding(
+        get: { due?.displayDate ?? Date() },
+        set: { due?.instant_utc = Int64($0.timeIntervalSince1970 * 1000); due?.ambiguous = false }),
+        displayedComponents: [.date, .hourAndMinute])
+      Text("Time zone: \(TimeZone.current.identifier)").font(.caption).foregroundStyle(RelayTheme.muted)
+    } else if kind == "date" {
+      DatePicker("Due date", selection: dateBinding("date"), displayedComponents: .date)
+      Text("Calendar date · stays the same when you travel").font(.caption).foregroundStyle(RelayTheme.muted)
+    } else if kind == "range" {
+      DatePicker("From", selection: dateBinding("start"), displayedComponents: .date)
+      DatePicker("Through", selection: dateBinding("end"), displayedComponents: .date)
+    }
+  }
+  func setKind(_ type: String) {
+    guard type != "none" else { due = nil; return }
+    let selected = due?.displayDate ?? Date()
+    var value = Due(date: day(selected)); value.type = type
+    if type == "instant" { value.date = nil; value.instant_utc = Int64(selected.timeIntervalSince1970 * 1000) }
+    if type == "range" { value.date = nil; value.range_start = day(selected); value.range_end = day(selected) }
+    due = value
+  }
+  func day(_ date: Date) -> String {
+    let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
+  }
+  func dateBinding(_ field: String) -> Binding<Date> {
+    Binding(get: {
+      let text = field == "date" ? due?.date : field == "start" ? due?.range_start : due?.range_end
+      let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
+      return text.flatMap(f.date(from:)) ?? Date()
+    }, set: {
+      if field == "date" { due?.date = day($0) }
+      else if field == "start" { due?.range_start = day($0) }
+      else { due?.range_end = day($0) }
+      due?.ambiguous = false
+    })
   }
 }

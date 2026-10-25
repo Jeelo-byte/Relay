@@ -1,4 +1,4 @@
-#if !targetEnvironment(simulator)
+#if canImport(MLXVLM) && !targetEnvironment(simulator)
   import Foundation
   import HuggingFace
   import MLXLMCommon

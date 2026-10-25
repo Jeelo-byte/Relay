@@ -17,3 +17,7 @@ The shared data model, design tokens, encrypted SQLite persistence, account key 
 See [implementation decisions](docs/DECISIONS.md) for explicit scope and integration limits. The supplied build plan is preserved in [docs/BuildPlan-v5.txt](docs/BuildPlan-v5.txt).
 
 Agreements are a shared-understanding view, not a legal contract or legal advice.
+
+## iMessage on Mac
+
+Relay can read new text from chosen Messages conversations on the Mac after Full Disk Access is granted. Open Inbox → Choose Chats → iMessage to connect. See [iMessage setup and limits](docs/IMESSAGE.md).

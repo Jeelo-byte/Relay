@@ -125,7 +125,7 @@ struct PeopleView: View {
       ForEach(parties) { p in
         Section {
           ForEach(store.visible.filter { $0.parties.contains(where: { $0.id == p.id }) }) { a in
-            NavigationLink(value: a.id) {
+            Button { onSelect(a.id) } label: {
               VStack(alignment: .leading, spacing: 4) {
                 Text(a.title).font(.headline)
                 Text(a.lifecycle.label).font(.caption).foregroundStyle(RelayTheme.muted)

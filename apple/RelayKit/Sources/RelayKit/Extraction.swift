@@ -32,6 +32,7 @@ public struct PromptWindow {
   public var prompt: String
   public var messages: [String: ChatMessage]
   public var parties: [String: Party]
+  public var quoteMaps: [String: [String: String]]
 }
 public enum Extraction {
   public static let instructions = """
@@ -59,24 +60,34 @@ public enum Extraction {
       }
     }
     var lines: [[String: Any]] = []
+    var quoteMaps: [String: [String: String]] = [:]
     for (i, m) in input.suffix(35).enumerated() {
       let id = "m\(i+1)"
       messages[id] = m
       let party =
         m.sender.is_self ? "P1" : parties.first { $0.value.id == m.sender.id }?.key ?? "P2"
+      var replacements: [String: String] = [:]
+      let safeText = pseudonymize(String(m.text.prefix(1500)), parties: parties, replacements: &replacements)
+      quoteMaps[id] = replacements
       lines.append([
         "id": id, "party": party, "timestamp": m.ts,
-        "text": pseudonymize(String(m.text.prefix(1500)), parties: parties),
+        "text": safeText,
       ])
     }
     let participantText = parties.keys.sorted().map {
       "\($0) = \($0=="P1" ? "you":"other participant")"
     }.joined(separator: "\n")
-    let prior = existing.filter(\.isActive).prefix(10).map { a in
-      [
-        "id": a.id.uuidString.lowercased(), "title": pseudonymize(a.title, parties: parties),
-        "lifecycle": a.lifecycle.rawValue,
-      ]
+    var prior: [[String: Any]] = []
+    for a in existing.filter(\.isActive).prefix(10) {
+      var terms: [[String: String]] = []
+      for o in a.obligations {
+        let from = parties.first(where: { $0.value.id == o.obligor_party_id })?.key ?? "unknown"
+        let to = parties.first(where: { $0.value.id == o.obligee_party_id })?.key ?? "unknown"
+        let money = o.amount.map { "\($0.minor) minor \($0.currency)" } ?? "Not stated"
+        let due = o.due?.date ?? o.due?.raw_text ?? "Not stated"
+        terms.append(["obligor": from, "obligee": to, "what": pseudonymize(o.what, parties: parties), "amount": money, "due": due])
+      }
+      prior.append(["id": a.id.uuidString.lowercased(), "title": pseudonymize(a.title, parties: parties), "lifecycle": a.lifecycle.rawValue, "obligations": terms])
     }
     let chat = String(
       data: try! JSONSerialization.data(withJSONObject: lines, options: [.sortedKeys]),
@@ -87,13 +98,18 @@ public enum Extraction {
     return PromptWindow(
       prompt: instructions + "\n<participants>\n" + participantText
         + "\n</participants>\n<existing>" + previous + "</existing>\n<chat>" + chat
-        + "</chat>\nReturn JSON now.", messages: messages, parties: parties)
+        + "</chat>\nReturn JSON now.", messages: messages, parties: parties, quoteMaps: quoteMaps)
   }
   static func pseudonymize(_ text: String, parties: [String: Party]) -> String {
+    var replacements: [String: String] = [:]
+    return pseudonymize(text, parties: parties, replacements: &replacements)
+  }
+  static func pseudonymize(_ text: String, parties: [String: Party], replacements: inout [String: String]) -> String {
     var result = text
     for (p, party) in parties.sorted(by: {
       $0.value.display_name_snapshot.count > $1.value.display_name_snapshot.count
     }) where !party.is_self && !party.display_name_snapshot.isEmpty {
+      replacements[p] = party.display_name_snapshot
       result = result.replacingOccurrences(
         of: party.display_name_snapshot, with: p, options: .caseInsensitive)
     }
@@ -106,7 +122,9 @@ public enum Extraction {
           .enumerated().reversed()
         {
           if let range = Range(m.range, in: result) {
-            result.replaceSubrange(range, with: "[\(label)\(i+1)]")
+            let placeholder = "[\(label)\(i+1)]"
+            replacements[placeholder] = String(result[range])
+            result.replaceSubrange(range, with: placeholder)
           }
         }
       }
@@ -162,6 +180,16 @@ public enum Extraction {
   ) -> Agreement? {
     guard extracted.confidence >= 0.35 else { return nil }
     let sources = extracted.evidence.compactMap { e in window.messages[e.m].map { (e, $0) } }
+    // Persist the actual quoted span, not an unrelated prefix of the message.
+    let sourceQuotes = sources.compactMap { e, m -> String? in
+      var quote = e.quote
+      for (placeholder, original) in (window.quoteMaps[e.m] ?? [:]).sorted(by: { $0.key.count > $1.key.count }) {
+        quote = quote.replacingOccurrences(of: placeholder, with: original)
+      }
+      guard let range = m.text.range(of: quote, options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) else { return nil }
+      return String(m.text[range])
+    }
+    guard sourceQuotes.count == sources.count else { return nil }
     let obligations = extracted.obligations.compactMap { o -> Obligation? in
       guard let from = window.parties[o.obligor], let to = window.parties[o.obligee] else {
         return nil
@@ -175,9 +203,10 @@ public enum Extraction {
     var a = Agreement(
       title: extracted.title, parties: Array(window.parties.values).sorted { $0.id < $1.id },
       obligations: obligations, lifecycle: extracted.lifecycle, kind: extracted.kind)
-    a.evidence = sources.map { e, m in
+    a.evidence = sources.enumerated().map { index, source in
+      let (e, m) = source
       var evidence = Evidence(message: m, supports: e.supports)
-      evidence.quote = String(m.text.prefix(280))
+      evidence.quote = sourceQuotes[index]
       return evidence
     }
     // A direct, adjacent acceptance is deterministic evidence; keep the model conservative.

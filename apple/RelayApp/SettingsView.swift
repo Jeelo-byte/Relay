@@ -7,7 +7,7 @@ struct SettingsView: View {
   @State private var account = false
   @State private var messages = false
   @State private var confirmSignOut = false
-  @AppStorage("relay.notifications.details") private var details = false
+  @AppStorage("relay.lockAfter") private var lockAfter = 300
   var body: some View {
     Form {
       Section("Workspace") {
@@ -22,6 +22,11 @@ struct SettingsView: View {
           LabeledContent("Sync", value: store.syncStatus)
           Button("Sync Now") { Task { await store.sync() } }.disabled(store.syncing)
           Button("Lock Relay") { store.lock() }
+          Picker("Lock After Inactivity", selection: $lockAfter) {
+            Text("1 minute").tag(60)
+            Text("5 minutes").tag(300)
+            Text("15 minutes").tag(900)
+          }
           Button("Sign Out", role: .destructive) { confirmSignOut = true }
         } else {
           Text("Encrypted on this device")
@@ -40,13 +45,13 @@ struct SettingsView: View {
         Label(
           model.ready ? model.status : "Manual", systemImage: model.ready ? "cpu" : "hand.raised")
         Text(
-          "Gemma 4 E2B · 4-bit · runs inside Relay. Download requires several GB and an Apple Silicon device. No chat text is sent to a model provider."
+          ModelManager.supported ? "Gemma 4 E2B · 4-bit · runs inside Relay. Download requires several GB and an Apple Silicon device. No chat text is sent to a model provider." : "Manual mode is fully available. Local Gemma needs a build made with Swift 6.2 or newer on an Apple Silicon device."
         ).font(.caption).foregroundStyle(RelayTheme.muted)
         if model.working {
           ProgressView(value: model.progress)
           Button("Pause Download") { model.cancel() }
         } else if !model.ready {
-          Button("Download and Load Gemma") { model.load() }
+          Button("Download and Load Gemma") { model.load() }.disabled(!ModelManager.supported)
         }
         if let issue = model.issue { Text(issue).font(.caption).foregroundStyle(RelayTheme.danger) }
         if model.ready {
@@ -57,6 +62,7 @@ struct SettingsView: View {
         if store.isDemo { Button("Add Sample Conversation") { store.stageDemoConversation() } }
       }
       Section("Data") {
+        LabeledContent("Key Storage", value: KeychainStore.storageDescription)
         LabeledContent("Sync Issues", value: "\(store.syncIssues)")
         if let error = store.error { Text(error).font(.caption).foregroundStyle(RelayTheme.danger) }
         ShareLink(item: exportText) {

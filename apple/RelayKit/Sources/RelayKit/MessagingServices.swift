@@ -1,11 +1,12 @@
 import Foundation
 
 public enum MessagingService: String, Codable, CaseIterable, Identifiable, Sendable {
-  case whatsapp, telegram, discord, signal, slack, gmessages, messenger, instagram
+  case imessage, whatsapp, telegram, discord, signal, slack, gmessages, messenger, instagram
   public var id: String { rawValue }
   public var name: String {
     switch self {
     case .whatsapp: "WhatsApp"
+    case .imessage: "iMessage"
     case .gmessages: "Google Messages"
     case .messenger: "Messenger"
     case .instagram: "Instagram"
@@ -24,7 +25,7 @@ public enum MessagingService: String, Codable, CaseIterable, Identifiable, Senda
     case .telegram: "paperplane"
     case .discord: "gamecontroller"
     case .slack: "number"
-    case .gmessages: "message"
+    case .gmessages, .imessage: "message"
     case .messenger: "bubble.left.and.bubble.right"
     case .instagram: "camera"
     }
@@ -37,6 +38,7 @@ public enum MessagingService: String, Codable, CaseIterable, Identifiable, Senda
   }
   public var setupHint: String {
     switch self {
+    case .imessage: "Read chosen conversations from Messages on this Mac. Full Disk Access is required."
     case .whatsapp: "Link a device by scanning its QR code with WhatsApp."
     case .telegram: "Add your Telegram API ID/hash, then sign in with your phone and login code."
     case .discord: "Sign in through the Discord bridge’s account-linking flow."

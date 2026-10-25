@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import Security
+import LocalAuthentication
 import Sodium
 
 public enum VaultError: LocalizedError {
@@ -119,15 +120,39 @@ extension Data {
 }
 public enum KeychainStore {
   static let service = "app.relay.agreements"
-  public static func read(_ key: String) throws -> Data? {
+  public static var usesDataProtectionKeychain: Bool {
+    #if os(macOS) && DEBUG
+      // Command-line/ad-hoc development builds have no provisioned app identity.
+      // Keep those keys in the macOS login Keychain; signed release builds always
+      // use the app-isolated Data Protection keychain.
+      var code: SecCode?
+      var staticCode: SecStaticCode?
+      var information: CFDictionary?
+      guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
+        SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
+        SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
+        let details = information as? [String: Any],
+        let entitlements = details[kSecCodeInfoEntitlementsDict as String] as? [String: Any]
+      else { return false }
+      return entitlements["com.apple.application-identifier"] != nil
+        || entitlements["application-identifier"] != nil
+    #else
+      return true
+    #endif
+  }
+  public static var storageDescription: String {
+    usesDataProtectionKeychain ? "Data Protection Keychain" : "macOS login Keychain · development build"
+  }
+  public static func read(_ key: String, context: LAContext? = nil) throws -> Data? {
     var q: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
       kSecAttrAccount as String: key, kSecReturnData as String: true,
       kSecMatchLimit as String: kSecMatchLimitOne,
     ]
     #if os(macOS)
-      q[kSecUseDataProtectionKeychain as String] = true
+      if usesDataProtectionKeychain { q[kSecUseDataProtectionKeychain as String] = true }
     #endif
+    if let context { q[kSecUseAuthenticationContext as String] = context }
     var result: CFTypeRef?
     let status = SecItemCopyMatching(q as CFDictionary, &result)
     if status == errSecItemNotFound { return nil }
@@ -140,19 +165,40 @@ public enum KeychainStore {
       kSecAttrAccount as String: key,
     ]
     #if os(macOS)
-      q[kSecUseDataProtectionKeychain as String] = true
+      if usesDataProtectionKeychain { q[kSecUseDataProtectionKeychain as String] = true }
     #endif
     let updates: [String: Any] = [kSecValueData as String: data]
     let status = SecItemUpdate(q as CFDictionary, updates as CFDictionary)
     if status == errSecItemNotFound {
       q[kSecValueData as String] = data
-      q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-      q[kSecAttrSynchronizable as String] = false
+      if usesDataProtectionKeychain {
+        q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        q[kSecAttrSynchronizable as String] = false
+      }
       let insert = SecItemAdd(q as CFDictionary, nil)
       guard insert == errSecSuccess else { throw VaultError.keychain(insert) }
     } else if status != errSecSuccess {
       throw VaultError.keychain(status)
     }
+  }
+  public static func enrollBiometricGate() throws {
+    guard usesDataProtectionKeychain else { return }
+    delete("ui-biometric-gate")
+    let context = LAContext()
+    guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil) else { return }
+    var error: Unmanaged<CFError>?
+    guard let control = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, .biometryCurrentSet, &error) else {
+      throw VaultError.locked
+    }
+    var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service, kSecAttrAccount as String: "ui-biometric-gate",
+      kSecValueData as String: RelayCrypto.random(32), kSecAttrAccessControl as String: control,
+      kSecAttrSynchronizable as String: false]
+    #if os(macOS)
+      query[kSecUseDataProtectionKeychain as String] = true
+    #endif
+    let status = SecItemAdd(query as CFDictionary, nil)
+    guard status == errSecSuccess else { throw VaultError.keychain(status) }
   }
   public static func delete(_ key: String) {
     var q: [String: Any] = [
@@ -160,7 +206,7 @@ public enum KeychainStore {
       kSecAttrAccount as String: key,
     ]
     #if os(macOS)
-      q[kSecUseDataProtectionKeychain as String] = true
+      if usesDataProtectionKeychain { q[kSecUseDataProtectionKeychain as String] = true }
     #endif
     SecItemDelete(q as CFDictionary)
   }

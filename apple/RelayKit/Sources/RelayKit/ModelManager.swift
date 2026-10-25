@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-#if !targetEnvironment(simulator)
+#if canImport(MLXVLM) && !targetEnvironment(simulator)
   import MLXVLM
   import MLXLMCommon
   import HuggingFace
@@ -18,12 +18,19 @@ import SwiftUI
   @Published public var issue: String?
   private var loadTask: Task<Void, Never>?
   private var inference: Task<String, Error>?
-  #if !targetEnvironment(simulator)
+  #if canImport(MLXVLM) && !targetEnvironment(simulator)
     private var container: ModelContainer?
   #endif
+  public static var supported: Bool {
+    #if canImport(MLXVLM) && !targetEnvironment(simulator)
+      return true
+    #else
+      return false
+    #endif
+  }
   public init() {
-    #if targetEnvironment(simulator)
-      status = "Simulator · Manual Mode"
+    #if !canImport(MLXVLM) || targetEnvironment(simulator)
+      status = "Manual · Local Model Unavailable"
     #endif
   }
   public static func modelDirectory() throws -> URL {
@@ -36,9 +43,9 @@ import SwiftUI
     return url
   }
   public func load() {
-    #if targetEnvironment(simulator)
+    #if !canImport(MLXVLM) || targetEnvironment(simulator)
       issue =
-        "MLX inference needs a physical Apple Silicon device. The simulator supports the full manual agreement workflow."
+        "Local inference requires an Apple Silicon device and an Xcode toolchain with Swift 6.2 or newer. Manual mode works in this build."
     #else
       guard !working, !ready else { return }
       working = true
@@ -74,7 +81,7 @@ import SwiftUI
     if !ready { status = "Paused" }
   }
   public func generate(_ prompt: String) async throws -> String {
-    #if targetEnvironment(simulator)
+    #if !canImport(MLXVLM) || targetEnvironment(simulator)
       throw APIError(
         status: 0, code: "simulator", message: "Local model inference requires a physical device.",
         current: nil)

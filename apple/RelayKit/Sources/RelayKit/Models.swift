@@ -20,11 +20,12 @@ public enum AgreementKind: String, Codable, CaseIterable, Sendable {
   }
 }
 public enum Network: String, Codable, CaseIterable, Sendable {
-  case whatsapp, telegram, discord, signal, slack, gmessages, meta, other
+  case whatsapp, telegram, discord, signal, slack, gmessages, imessage, meta, other
   public var label: String {
     switch self {
     case .whatsapp: "WhatsApp"
     case .gmessages: "Google Messages"
+    case .imessage: "iMessage"
     default: rawValue.capitalized
     }
   }
@@ -96,10 +97,17 @@ public struct Due: Codable, Equatable, Sendable {
     return type == "instant" ? d : Calendar.current.date(byAdding: .day, value: 1, to: d)
   }
   public var formatted: String {
+    if type == "none" { return raw_text.isEmpty ? "Not stated" : "Due: ‘\(raw_text)’ (not resolved)" }
     guard let d = displayDate else { return "Not stated" }
-    return d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
-      + (ambiguous ? " (assumed)" : "")
+    let suffix = ambiguous ? " (assumed)" : ""
+    if type == "instant" { return d.formatted(date: .abbreviated, time: .shortened) + suffix }
+    if type == "range", let start = range_start {
+      let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
+      if let first = f.date(from: start) { return first.formatted(.dateTime.month(.abbreviated).day()) + " – " + d.formatted(.dateTime.month(.abbreviated).day()) + suffix }
+    }
+    return d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) + suffix
   }
+
 }
 public struct TextTerm: Codable, Equatable, Sendable {
   public var text: String
@@ -108,6 +116,7 @@ public struct TextTerm: Codable, Equatable, Sendable {
 public struct Recurrence: Codable, Equatable, Sendable {
   public var rrule: String?
   public var raw_text: String
+  public init(rrule: String? = nil, rawText: String) { self.rrule = rrule; self.raw_text = rawText }
 }
 public struct Obligation: Codable, Identifiable, Equatable, Sendable {
   public var id: UUID = UUID()

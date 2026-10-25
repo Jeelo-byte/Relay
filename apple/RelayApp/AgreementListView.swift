@@ -10,6 +10,7 @@ struct AgreementListView: View {
   var onNew: () -> Void
   var onEdit: (Agreement) -> Void
   var compact = false
+  @State private var searchPresented = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var filtered: [Agreement] {
     store.visible.filter {
@@ -20,8 +21,9 @@ struct AgreementListView: View {
               search))
     }.sorted { a, b in
       if a.isOverdue != b.isOverdue { return a.isOverdue }
-      return (a.obligations.compactMap { $0.due?.endDate }.min() ?? .distantFuture)
-        < (b.obligations.compactMap { $0.due?.endDate }.min() ?? .distantFuture)
+      let ad = a.obligations.filter(\.isOpen).compactMap { $0.due?.endDate }.min() ?? .distantFuture
+      let bd = b.obligations.filter(\.isOpen).compactMap { $0.due?.endDate }.min() ?? .distantFuture
+      return ad == bd ? a.updated_at > b.updated_at : ad < bd
     }
   }
   var suggested: [Agreement] { filtered.filter { $0.review_state == .suggested } }
@@ -86,7 +88,8 @@ struct AgreementListView: View {
         ).frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.vertical, 16)
       }.padding(16)
     }.background(RelayTheme.background).navigationTitle("Agreements")
-      .searchable(text: $search, prompt: "Search Agreements")
+      .searchable(text: $search, isPresented: $searchPresented, prompt: "Search Agreements")
+      .onReceive(NotificationCenter.default.publisher(for: .relaySearch)) { _ in searchPresented = true }
       .toolbar {
         ToolbarItem(placement: .primaryAction) {
           Button(action: onNew) { Label("New Agreement", systemImage: "plus") }.help(

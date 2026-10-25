@@ -27,7 +27,7 @@ struct RootView: View {
   @State private var account = false
   @State private var search = ""
   @State private var filter: AgreementFilter = .all
-  @State private var showSearch = false
+  @State private var peoplePath: [UUID] = []
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var compact: Bool {
     #if os(iOS)
@@ -54,7 +54,7 @@ struct RootView: View {
     .onReceive(NotificationCenter.default.publisher(for: .relayNew)) { _ in newAgreement() }
     .onReceive(NotificationCenter.default.publisher(for: .relaySearch)) { _ in
       destination = .agreements
-      showSearch = true
+
     }
     .overlay(alignment: .bottom) {
       if let toast = store.toast {
@@ -71,6 +71,10 @@ struct RootView: View {
       }
     }
     .animation(reduceMotion ? nil : RelayTheme.cardAnimation, value: store.toast)
+    .alert("Relay Needs Your Attention", isPresented: Binding(get: { store.error != nil && !store.locked }, set: { if !$0 { store.error = nil } })) {
+      Button("OK") { store.error = nil }
+    } message: { Text(store.error ?? "") }
+
   }
   var wideView: some View {
     NavigationSplitView {
@@ -134,8 +138,8 @@ struct RootView: View {
       NavigationStack { InboxView(onCreate: { editor = $0 }) }.tabItem {
         Label("Inbox", systemImage: Destination.inbox.symbol)
       }.tag(Destination.inbox as Destination?)
-      NavigationStack {
-        PeopleView(onSelect: { selected = $0 }).navigationDestination(for: UUID.self) { id in
+      NavigationStack(path: $peoplePath) {
+        PeopleView(onSelect: { peoplePath.append($0) }).navigationDestination(for: UUID.self) { id in
           AgreementDetailView(id: id, onEdit: { editor = $0 }, onSource: { _ in })
         }
       }.tabItem { Label("People", systemImage: Destination.people.symbol) }.tag(

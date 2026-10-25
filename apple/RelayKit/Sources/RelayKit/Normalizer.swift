@@ -5,7 +5,9 @@ public final class Normalizer {
   private let context: JSContext
   public init() {
     context = JSContext()!
-    if let url = Bundle.module.url(forResource: "normalize", withExtension: "js"),
+    let packaged = Bundle.main.resourceURL.map { $0.appendingPathComponent("RelayKit_RelayKit.bundle") }.flatMap { Bundle(url: $0) }
+    let resources = packaged ?? Bundle.module
+    if let url = resources.url(forResource: "normalize", withExtension: "js"),
       let script = try? String(contentsOf: url, encoding: .utf8)
     {
       context.evaluateScript(script)

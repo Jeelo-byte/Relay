@@ -35,7 +35,7 @@ struct MatrixConnectView: View {
             Text(
               "Every live chat starts off. Turn on only the conversations you want Relay to read."
             ).font(.caption).foregroundStyle(RelayTheme.muted)
-            ForEach(store.rooms) { room in
+            ForEach(store.rooms.filter { !$0.id.hasPrefix("imessage:") }) { room in
               Toggle(
                 isOn: Binding(
                   get: { store.rooms.first { $0.id == room.id }?.opted_in ?? false },

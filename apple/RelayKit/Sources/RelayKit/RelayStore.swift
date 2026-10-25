@@ -18,6 +18,10 @@ import SwiftUI
   @Published public var processing = false
   @Published public var highlightedMessageID: String?
   @Published public var matrixStatus = "Not Connected"
+  @Published public var imessageStatus = "Not Connected"
+  @Published public var imessageError: String?
+  private var imessageSyncing = false
+  private var matrixSyncing = false
   public let deviceID: UUID
   private var local: LocalStore?
   private var syncTask: Task<Void, Never>?
@@ -69,9 +73,8 @@ import SwiftUI
     try? local?.setMeta("started", value: "true")
   }
   public func loadDemo() {
-    guard agreements.isEmpty else {
-      isDemo = true
-      beginManual()
+    guard session == nil, agreements.isEmpty else {
+      toast = "Your current workspace is already open"
       return
     }
     isDemo = true
@@ -83,18 +86,20 @@ import SwiftUI
     for a in DemoData.agreements { save(a) }
     toast = "Sample workspace is ready"
   }
-  public func save(_ a: Agreement) {
+  @discardableResult public func save(_ a: Agreement) -> Bool {
     var value = a
     value.updated_at = Clock.ms
     do {
-      try local?.save(value, id: value.id)
+      guard let local else { throw VaultError.locked }
+      try local.save(value, id: value.id)
       if let i = agreements.firstIndex(where: { $0.id == a.id }) {
         agreements[i] = value
       } else {
         agreements.insert(value, at: 0)
       }
       scheduleSync()
-    } catch { self.error = error.localizedDescription }
+      return true
+    } catch { self.error = error.localizedDescription; return false }
   }
   public func accept(_ id: UUID) {
     mutate(id) { a in
@@ -142,26 +147,15 @@ import SwiftUI
     }
   }
   public func applyChange(_ agreement: UUID, _ event: UUID, apply: Bool) {
-    mutate(agreement) { a in
-      guard let i = a.timeline.firstIndex(where: { $0.id == event }), a.timeline[i].pending else {
-        return
-      }
-      let e = a.timeline[i]
+    guard var a = agreements.first(where: { $0.id == agreement }),
+      let i = a.timeline.firstIndex(where: { $0.id == event }), a.timeline[i].pending else { return }
+    let e = a.timeline[i]
+    do {
+      if apply { try AgreementChanges.apply(e, to: &a) }
       a.timeline[i].pending = false
-      if apply, let value = e.new {
-        if e.field_path == "obligations[0].due", !a.obligations.isEmpty {
-          a.obligations[0].due = Due(date: value, raw: value)
-        }
-        if e.field_path == "lifecycle", let lifecycle = Lifecycle(rawValue: value) {
-          a.lifecycle = lifecycle
-        }
-      }
-      a.timeline.append(
-        TimelineEvent(
-          apply ? "term_change_applied" : "term_change_rejected", field: e.field_path, old: e.old,
-          new: e.new))
-    }
-    toast = apply ? "Change Applied" : "Change Ignored"
+      a.timeline.append(TimelineEvent(apply ? "term_change_applied" : "term_change_rejected", field: e.field_path, old: e.old, new: e.new))
+      if save(a) { toast = apply ? "Change Applied" : "Change Ignored" }
+    } catch { self.error = error.localizedDescription }
   }
   public func demoChange(_ id: UUID) {
     guard isDemo else { return }
@@ -227,6 +221,7 @@ import SwiftUI
     if session?.account_id != newSession.account_id { try local?.resetSync() }
     session = newSession
     try KeychainStore.write(JSONEncoder().encode(newSession), key: "account-session")
+    try? KeychainStore.enrollBiometricGate()
     locked = false
     beginManual()
     Task { await sync() }
@@ -238,6 +233,10 @@ import SwiftUI
     }
   }
   public func unlockBiometrically() async {
+    guard KeychainStore.usesDataProtectionKeychain else {
+      error = "This development build uses your macOS login Keychain. Use your Relay passphrase to unlock. Biometric unlock needs a provisioned app build."
+      return
+    }
     let context = LAContext()
     var reason: NSError?
     guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &reason) else {
@@ -248,18 +247,28 @@ import SwiftUI
       if try await context.evaluatePolicy(
         .deviceOwnerAuthenticationWithBiometrics, localizedReason: "Unlock your Relay agreements")
       {
+        guard try KeychainStore.read("ui-biometric-gate", context: context) != nil else {
+          error = "Use your account passphrase once to enable biometric unlock on this device."
+          return
+        }
         locked = false
         Task { await sync() }
       }
-    } catch { self.error = "Biometric unlock was cancelled. You can use your passphrase." }
+    } catch { self.error = "Use your passphrase to unlock. Biometric access was cancelled or the enrolled biometrics changed." }
   }
   public func signOut() {
+    syncTask?.cancel()
+    imessageStatus = "Not Connected"
+    imessageError = nil
+    isDemo = false
+    try? local?.setMeta("demo", value: "false")
     for id in (try? local?.ids()) ?? [] { try? local?.remove(id) }
     try? local?.setMeta("since", value: "0")
     try? local?.setMeta("matrix_since", value: "")
     KeychainStore.delete("matrix-session")
     session = nil
     KeychainStore.delete("account-session")
+    KeychainStore.delete("ui-biometric-gate")
     agreements = []
     messages = []
     rooms = []
@@ -282,10 +291,11 @@ import SwiftUI
     }
   }
   public func newFromMessage(_ m: ChatMessage) -> Agreement {
+    let other = m.sender.is_self ? Party(id: "manual:" + UUID().uuidString, name: "", network: m.network) : m.sender
     var a = Agreement(
       title: "New Agreement",
-      parties: [.me, m.sender].reduce(into: [Party]()) { if !$0.contains($1) { $0.append($1) } },
-      obligations: [Obligation(from: m.sender.id, to: Party.me.id, what: "")], review: .accepted)
+      parties: [.me, other].reduce(into: [Party]()) { if !$0.contains($1) { $0.append($1) } },
+      obligations: [Obligation(from: m.sender.id, to: m.sender.is_self ? other.id : Party.me.id, what: "")], review: .accepted)
     a.evidence = [Evidence(message: m, supports: ["user_attached"])]
     a.covered_event_ids = [m.event_id]
     a.source_room_ids = [m.room_id]
@@ -318,6 +328,7 @@ import SwiftUI
             try local.synced(id, version: result.version)
           }
         } catch let e as APIError where e.status == 409 {
+          guard session?.account_id == s.account_id, !locked else { return }
           guard let remote = e.current else { throw e }
           if remote.deleted {
             agreements.removeAll { $0.id == id }
@@ -337,7 +348,10 @@ import SwiftUI
           try local.save(merged, id: id, dirty: true, serverVersion: remote.version)
           if let i = agreements.firstIndex(where: { $0.id == id }) { agreements[i] = merged }
           let result = try await api.put(merged, session: s, base: remote.version)
-          try local.synced(id, version: result.version)
+          guard session?.account_id == s.account_id, !locked else { return }
+          if let current = agreements.first(where: { $0.id == id }), current != merged {
+            try local.save(current, id: id, dirty: true, serverVersion: result.version)
+          } else { try local.synced(id, version: result.version) }
         }
       }
       var since = Int64(try local.meta("since") ?? "0") ?? 0
@@ -427,13 +441,17 @@ extension RelayStore {
       try local?.setMeta("demo", value: "false")
     }
     try KeychainStore.write(JSONEncoder().encode(matrix), key: "matrix-session")
-    rooms = discovered
+    rooms = discovered + rooms.filter { $0.id.hasPrefix("imessage:") }
     matrixStatus = "Connected"
     try local?.setMeta("matrix_since", value: "")
     cacheChats()
     beginManual()
   }
   public func backfillRoom(_ id: String) async {
+    if id.hasPrefix("imessage:") {
+      toast = "iMessage imports new messages from the time you enable a chat."
+      return
+    }
     guard !isDemo, !locked, let i = rooms.firstIndex(where: { $0.id == id }), rooms[i].opted_in,
       rooms[i].backfill_state != "running"
     else { return }
@@ -460,12 +478,16 @@ extension RelayStore {
     }
   }
   public func syncMatrix() async {
-    guard !isDemo, !locked else { return }
+    guard !isDemo, !locked, !matrixSyncing else { return }
+    matrixSyncing = true
+    defer { matrixSyncing = false }
     do {
       guard let data = try KeychainStore.read("matrix-session") else { return }
       let s = try JSONDecoder().decode(MatrixSession.self, from: data)
       let next = try local?.meta("matrix_since")
-      let response = try await MatrixClient(session: s).sync(rooms: rooms, since: next)
+      let response = try await MatrixClient(session: s).sync(
+        rooms: rooms.filter { !$0.id.hasPrefix("imessage:") }, since: next)
+      guard !locked, try KeychainStore.read("matrix-session") == data else { return }
       for m in response.messages {
         if !messages.contains(where: { $0.id == m.id }) { messages.append(m) }
       }
@@ -546,9 +568,13 @@ extension RelayStore {
       let candidates = messages.filter {
         $0.room_id == room.id && $0.kind == "text" && !$0.redacted && !covered.contains($0.event_id)
       }.sorted { $0.ts < $1.ts }
-      guard candidates.contains(where: { normalizer.triage($0.text).1 >= 2 }) else { continue }
+      let active = agreements.filter { $0.isActive && $0.source_room_ids.contains(room.id) }
+      guard candidates.contains(where: {
+        let triage = normalizer.triage($0.text)
+        return triage.1 >= 2 || (!active.isEmpty && ["change", "completion", "cancel", "acceptance"].contains(triage.0))
+      }) else { continue }
       let window = Extraction.window(
-        Array(candidates.suffix(35)),
+        Array(messages.filter { $0.room_id == room.id && $0.kind == "text" && !$0.redacted }.sorted { $0.ts < $1.ts }.suffix(35)),
         existing: agreements.filter { $0.source_room_ids.contains(room.id) })
       var leaseKey: String?
       var api: APIClient?
@@ -586,7 +612,7 @@ extension RelayStore {
           else { continue }
           if extracted.op != "create",
             let target = extracted.target_id.flatMap(UUID.init(uuidString:)),
-            var current = agreements.first(where: { $0.id == target })
+            var current = agreements.first(where: { $0.id == target && $0.source_room_ids.contains(room.id) && $0.review_state != .dismissed })
           {
             let existingEvidence = Set(current.evidence.map(\.event_id))
             current.evidence += new.evidence.filter { !existingEvidence.contains($0.event_id) }
@@ -598,13 +624,8 @@ extension RelayStore {
                   "term_change_suggested", actor: "ai", field: "lifecycle",
                   old: current.lifecycle.rawValue,
                   new: extracted.op == "complete" ? "fulfilled" : "cancelled", pending: true))
-            } else if let date = new.obligations.first?.due?.date,
-              date != current.obligations.first?.due?.date
-            {
-              current.timeline.append(
-                TimelineEvent(
-                  "term_change_suggested", actor: "ai", field: "obligations[0].due",
-                  old: current.obligations.first?.due?.date, new: date, pending: true))
+            } else {
+              current.timeline += AgreementChanges.suggestions(from: new, for: current)
             }
             save(current)
           } else {
@@ -613,7 +634,7 @@ extension RelayStore {
           }
         }
         await sync()
-        if let key = leaseKey, let api {
+        if pendingCount == 0, let key = leaseKey, let api {
           _ = try await api.request("leases/complete", method: "POST", body: ["lease_key": key])
         }
       } catch is CancellationError {
@@ -640,3 +661,77 @@ extension RelayStore {
       ? "\(created) Agreement\(created==1 ? "":"s") Ready to Review" : "No New Agreements Found"
   }
 }
+
+#if os(macOS)
+extension RelayStore {
+  public func discoverIMessages() async {
+    guard !locked, !isDemo else {
+      imessageError = "Open your own workspace before connecting iMessage."
+      return
+    }
+    do {
+      let found = try await Task.detached { try IMessageClient().discover() }.value
+      guard !locked else { return }
+      let existing = Dictionary(uniqueKeysWithValues: rooms.filter { $0.id.hasPrefix("imessage:") }.map { ($0.id, $0) })
+      rooms = rooms.filter { !$0.id.hasPrefix("imessage:") } + found.map { room in
+        var value = room
+        if let previous = existing[room.id] {
+          value.opted_in = previous.opted_in
+          value.backfill_cursor = previous.backfill_cursor
+        }
+        return value
+      }
+      cacheChats()
+      imessageError = nil
+      imessageStatus = "\(found.count) Conversations Available"
+      beginManual()
+    } catch {
+      imessageStatus = "Access Needed"
+      imessageError = "Relay couldn’t read Messages. Sign in to Messages, give Relay Full Disk Access, then quit and reopen Relay. If access is already enabled, this Mac’s Messages database may use an unsupported format."
+    }
+  }
+  public func setIMessageOptIn(_ id: String, _ enabled: Bool) async {
+    guard !locked, !isDemo, id.hasPrefix("imessage:") else { return }
+    if !enabled { setOptIn(id, false); return }
+    do {
+      let latest = try await Task.detached { try IMessageClient().latest(room: id) }.value
+      guard !locked, let index = rooms.firstIndex(where: { $0.id == id }) else { return }
+      rooms[index].backfill_cursor = String(latest)
+      rooms[index].opted_in = true
+      cacheChats()
+      imessageError = nil
+      imessageStatus = "Connected · Waiting for New Messages"
+    } catch {
+      imessageError = "Messages access is unavailable. Check Relay’s Full Disk Access permission."
+    }
+  }
+  public func syncIMessages() async {
+    guard !locked, !isDemo, !imessageSyncing else { return }
+    let selected = rooms.filter { $0.id.hasPrefix("imessage:") && $0.opted_in }
+    guard !selected.isEmpty else { return }
+    imessageSyncing = true
+    defer { imessageSyncing = false }
+    do {
+      for room in selected {
+        let cursor = Int64(room.backfill_cursor ?? "0") ?? 0
+        let result = try await Task.detached {
+          try IMessageClient().messages(room: room.id, after: cursor)
+        }.value
+        guard !locked else { return }
+        guard let index = rooms.firstIndex(where: { $0.id == room.id }), rooms[index].opted_in else { continue }
+        for message in result.messages where !messages.contains(where: { $0.id == message.id }) {
+          messages.append(message)
+        }
+        rooms[index].backfill_cursor = String(result.cursor)
+        // Persist imported messages before advancing the saved cursor.
+        cacheChats()
+      }
+      imessageError = nil
+      imessageStatus = "Connected"
+    } catch {
+      imessageStatus = "Connection Issue"
+      imessageError = "Relay couldn’t refresh Messages. Check Full Disk Access and try again."
+    }
+  }
+}
+#endif

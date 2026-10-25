@@ -25,6 +25,9 @@ struct ConnectionsView: View {
         "Link accounts on your Mac. Relay reads only the chats you choose and never sends replies."
       ).font(.caption).foregroundStyle(RelayTheme.muted)
     }.sheet(item: $selected) { service in
+      if service == .imessage {
+        IMessageConnectView()
+      } else {
       NavigationStack {
         ScrollView {
           VStack(alignment: .leading, spacing: 24) {
@@ -57,9 +60,11 @@ struct ConnectionsView: View {
       }.navigationTitle(service.name).toolbar {
         ToolbarItem(placement: .confirmationAction) { Button("Done") { selected = nil } }
       }
+      }
     }
   }
   func status(_ service: MessagingService) -> String {
+    if service == .imessage { return store.imessageStatus }
     if store.isDemo { return "Sample Workspace · Account Not Linked" }
     let count = store.rooms.filter { $0.service == service }.count
     if count > 0 { return "\(count) Chat\(count==1 ? "":"s") Available" }

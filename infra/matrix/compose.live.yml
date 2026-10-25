@@ -1,0 +1,39 @@
+name: relay-live
+services:
+  postgres:
+    image: postgres@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: relay
+      POSTGRES_DB: relay_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Use private/runtime.env}
+    volumes:
+    - ./private/postgres:/var/lib/postgresql/data
+    - ./private/init.sql:/docker-entrypoint-initdb.d/001-relay.sql:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U relay -d relay_admin
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  synapse:
+    image: ghcr.io/element-hq/synapse@sha256:390f5e67227378eb87c84627b57f0582cdb235fcc8159d89f371f37bf7cccfd7
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:8008:8008
+    environment:
+      SYNAPSE_SERVER_NAME: relay.local
+      SYNAPSE_REPORT_STATS: 'no'
+    volumes:
+    - ./private/synapse:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+  whatsapp:
+    image: dock.mau.dev/mautrix/whatsapp@sha256:c807054cb015d0f5c90d20d85aac216d062b4a6f4ae834b931fd5e7f03e27391
+    restart: unless-stopped
+    volumes:
+    - ./private/whatsapp:/data
+    depends_on:
+    - synapse

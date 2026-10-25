@@ -14,3 +14,20 @@ artifacts/*.png
 artifacts/*.xcresult/
 artifacts/
 infra/matrix/private/
+
+# Local runtime data and generated artifacts
+__pycache__/
+*.pyc
+*.app/
+*.log
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.dmg
+*.zip
+.env.*
+!.env.example
+/outputs/
+/work/
+/Relay-*.png
