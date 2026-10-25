@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F07A768CEACB4D72B5C34101 /* MacWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07A768CEACB4D72B5C34102 /* MacWorkspace.swift */; };
 		0378AFB9222EC10A53D65C19 /* CalendarDraftTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BCF405907D62ACF1EACA53 /* CalendarDraftTransfer.swift */; };
 		087C61BD8A2FF20699CD4C80 /* AgreementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */; };
 		36106F372C8FED63A9C7C24A /* MatrixConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */; };
@@ -44,6 +45,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F07A768CEACB4D72B5C34102 /* MacWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWorkspace.swift; sourceTree = "<group>"; };
 		0EBD94A81CAB1263757E4877 /* RecapsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecapsView.swift; sourceTree = "<group>"; };
 		12E54D75C178A04FFA53DAA9 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
 		148DA32B423D43F136985A4F /* AccountRecoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRecoveryView.swift; sourceTree = "<group>"; };
@@ -107,6 +109,7 @@
 				5A3B862AFB81916F41A0F928 /* RelayApp.swift */,
 				4F1DAAEA2E18C5B8E3E774D7 /* ReminderScheduler.swift */,
 				635DE6AC84943DDDCC29E1AD /* RootView.swift */,
+				F07A768CEACB4D72B5C34102 /* MacWorkspace.swift */,
 				A51D875E65B6F594CC18612E /* SettingsOverview.swift */,
 				A3D62FC39932391D1E796A62 /* SettingsView.swift */,
 			);
@@ -264,6 +267,7 @@
 				7698D79B7E1C97FD2FA58A29 /* RelayApp.swift in Sources */,
 				70CD4441EE9E9FA299872A20 /* ReminderScheduler.swift in Sources */,
 				D23A50F30C6DED207B3B9FE7 /* RootView.swift in Sources */,
+				F07A768CEACB4D72B5C34101 /* MacWorkspace.swift in Sources */,
 				623214DDE984C252E558851D /* SettingsOverview.swift in Sources */,
 				364E7B0787A365B7F2AF79AB /* SettingsView.swift in Sources */,
 			);

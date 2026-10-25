@@ -1,7 +1,20 @@
 import SwiftUI
 
 public enum RelayAssets {
-  public static func samplePhoto(_ name: String) -> Image { Image("Sample" + name, bundle: .module) }
+  private static var resources: Bundle {
+    let packaged = Bundle.main.resourceURL.map { $0.appendingPathComponent("RelayKit_RelayKit.bundle") }.flatMap { Bundle(url: $0) }
+    return packaged ?? Bundle.module
+  }
+  public static func samplePhoto(_ name: String) -> Image {
+    #if os(macOS)
+    // SwiftPM command-line builds preserve the source asset catalog; Xcode
+    // compiles it. Support both package layouts without a machine-local path.
+    if let url = resources.url(forResource: "photo", withExtension: "png",
+      subdirectory: "RelayAssets.xcassets/Sample" + name + ".imageset"),
+      let image = NSImage(contentsOf: url) { return Image(nsImage: image) }
+    #endif
+    return Image("Sample" + name, bundle: resources)
+  }
 }
 
 public enum RelayTheme {

@@ -5,6 +5,7 @@ struct ConversationView: View {
   @EnvironmentObject private var store: RelayStore
   var onCreate: (Agreement) -> Void
   let roomID: String
+  var desktopEmbedded = false
   @State private var query = ""
   @State private var highlighted: String?
   @State private var draft = ""
@@ -56,8 +57,8 @@ struct ConversationView: View {
       }.onAppear { reveal(using: proxy) }
         .onChange(of: store.highlightedMessageID) { _, _ in reveal(using: proxy) }
         .onChange(of: messages.count) { _, _ in if let last = messages.last { proxy.scrollTo(last.id, anchor: .bottom) } }
-    }.background(RelayTheme.background).navigationTitle(room?.name ?? "Conversation")
-      .searchable(text: $query, prompt: "Search this conversation")
+    }.background(desktopEmbedded ? RelayTheme.surface : RelayTheme.background)
+      .modifier(ConversationChrome(embedded: desktopEmbedded, title: room?.name ?? "Conversation", query: $query))
       .safeAreaInset(edge: .bottom) { composer }
       .sheet(isPresented: $confirmSend) { reviewSendView }
       .onAppear {
@@ -141,7 +142,7 @@ struct ConversationView: View {
         Text(original.map { "Reply to \($0.sender.display_name_snapshot): \($0.text)" } ?? "Reply · Original message unavailable")
           .font(.caption).foregroundStyle(RelayTheme.muted).lineLimit(2)
       }
-      Text(message.redacted ? "Message deleted" : message.text).font(.body)
+      Text(message.redacted ? "Message deleted" : message.text).font(desktopEmbedded ? .system(size: 13) : .body)
       if !message.redacted, let media = message.media {
         if message.kind == "image" {
           MessageImageView(message: message)
@@ -155,7 +156,7 @@ struct ConversationView: View {
       }
       if message.edited { SourceBadge(title: "Edited") }
     }.padding(14).frame(maxWidth: message.sender.is_self ? 580 : 650, alignment: .leading)
-      .background(message.sender.is_self ? RelayTheme.selection : RelayTheme.surface, in: RoundedRectangle(cornerRadius: 16))
+      .background(message.sender.is_self ? RelayTheme.selection : desktopEmbedded ? RelayTheme.secondarySurface : RelayTheme.surface, in: RoundedRectangle(cornerRadius: 16))
       .overlay(RoundedRectangle(cornerRadius: 16).stroke(highlighted == message.id ? RelayTheme.accentText : .clear, lineWidth: 2))
   }
 }
@@ -197,5 +198,15 @@ private struct MessageImageView: View {
       #endif
     } catch is CancellationError { }
     catch { failure = "Photo unavailable. Check your message connection and try again." }
+  }
+}
+
+private struct ConversationChrome: ViewModifier {
+  var embedded: Bool
+  var title: String
+  @Binding var query: String
+  func body(content: Content) -> some View {
+    if embedded { content }
+    else { content.navigationTitle(title).searchable(text: $query, prompt: "Search this conversation") }
   }
 }

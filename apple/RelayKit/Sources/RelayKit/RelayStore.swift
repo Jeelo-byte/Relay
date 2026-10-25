@@ -78,8 +78,14 @@ import SwiftUI
         syncStatus = "Locked"
       }
     } catch { self.error = error.localizedDescription }
+    #if DEBUG
+    let designPreview = UUID(uuidString: ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] ?? "") != nil
+      && ProcessInfo.processInfo.environment["RELAY_DESIGN_PREVIEW"] == "1"
+    #else
+    let designPreview = false
+    #endif
     if ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] != nil,
-      ProcessInfo.processInfo.arguments.contains("-demo") && !started { loadDemo() }
+      (ProcessInfo.processInfo.arguments.contains("-demo") || designPreview) && !started { loadDemo() }
   }
   public var visible: [Agreement] { agreements.filter { $0.review_state != .dismissed } }
   public var dismissed: [Agreement] { agreements.filter { $0.review_state == .dismissed } }

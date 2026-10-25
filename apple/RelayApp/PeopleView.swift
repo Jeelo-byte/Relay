@@ -46,6 +46,7 @@ struct PersonDetailView: View {
   @EnvironmentObject private var store: RelayStore
   let party: Party
   var onSelect: (UUID) -> Void
+  var desktopEmbedded = false
   @State private var editingNote = false
   @State private var note = ""
   @State private var compactHeader = false
@@ -54,7 +55,7 @@ struct PersonDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
         HStack(spacing: 16) {
-          Avatar(name: party.display_name_snapshot, size: 88)
+          Avatar(name: party.display_name_snapshot, size: desktopEmbedded ? 64 : 88)
           VStack(alignment: .leading, spacing: 6) {
             Text(party.display_name_snapshot).font(.title.bold())
             Text(party.network.label).foregroundStyle(RelayTheme.muted)
@@ -102,7 +103,7 @@ struct PersonDetailView: View {
             Button("Edit Note", systemImage: "square.and.pencil") { note = store.personNotes[party.id] ?? ""; editingNote = true }.labelStyle(.iconOnly)
           }.padding(.horizontal, 20).padding(.vertical, 8).background(RelayTheme.background)
         }
-      }.background(RelayTheme.background).navigationTitle(party.display_name_snapshot)
+      }.background(desktopEmbedded ? RelayTheme.surface : RelayTheme.background).navigationTitle(desktopEmbedded ? "" : party.display_name_snapshot)
       .sheet(isPresented: $editingNote) {
         NavigationStack {
           Form {
