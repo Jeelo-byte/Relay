@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev apps/web --hostname 0.0.0.0",
     "build": "next build apps/web",
-    "test": "node --test packages/normalize/normalize.test.mjs backend/api.test.mjs apps/web/lib/crypto.test.mjs apps/web/lib/matrix.test.mjs scripts/host-gateway.test.mjs",
+    "test": "node --test packages/normalize/normalize.test.mjs backend/api.test.mjs apps/web/lib/crypto.test.mjs apps/web/lib/matrix.test.mjs apps/web/lib/recap-context.test.mjs scripts/host-gateway.test.mjs",
     "normalize": "esbuild packages/normalize/index.ts --bundle --format=iife --global-name=RelayNormalize --target=es2020 --outfile=apple/RelayKit/Sources/RelayKit/Resources/normalize.js",
     "start": "next start apps/web --hostname 0.0.0.0",
     "messages:status": "bash scripts/live-docker.sh ps",

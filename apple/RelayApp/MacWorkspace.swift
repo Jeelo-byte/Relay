@@ -172,7 +172,7 @@ private struct MacRecapsView: View {
   @State private var photos = false
   private var recaps: [ConversationRecap] {
     store.recaps.filter { value in
-      (store.rooms.first(where: { $0.id == value.room_id })?.opted_in ?? true)
+      value.suppressed != true && (store.rooms.first(where: { $0.id == value.room_id })?.opted_in ?? true)
       && (service == nil || value.service == service || value.network == service?.network)
       && (day == nil || value.day == day) && (room == nil || value.room_id == room)
     }.sorted { $0.day == $1.day ? $0.room_name < $1.room_name : $0.day > $1.day }
@@ -190,6 +190,7 @@ private struct MacRecapsView: View {
             Spacer()
             Button("Choose Chats", action: onChooseChats).buttonStyle(MacCapsuleButtonStyle())
           }
+          Text(store.automaticAIStatus).font(.caption).foregroundStyle(RelayTheme.muted)
           if !recaps.isEmpty || day != nil || room != nil {
             HStack {
               Menu(day ?? "All dates") {
@@ -228,7 +229,9 @@ private struct MacRecapsView: View {
               Spacer()
               Menu {
                 Button("Open Recap") { onRecap(recap.id) }
-                Button("Generate Local Recap") { Task { await store.generateRecap(recap.id, using: model) } }.disabled(!model.ready || store.generatingRecap || store.processing)
+                if recap.automatic != true {
+                  Button("Generate Local Recap") { Task { await store.generateRecap(recap.id, using: model) } }.disabled(!model.ready || store.generatingRecap || store.processing)
+                }
               } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Recap actions")
             }
             if store.isDemo && recap.room_id == DemoData.rooms[0].id {

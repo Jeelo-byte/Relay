@@ -66,6 +66,10 @@ struct WorkspaceSettingsView: View {
             .font(.caption).foregroundStyle(RelayTheme.muted)
         }
         SettingsCard("Processing") {
+          Toggle("Automatic AI", isOn: Binding(get: { store.automaticAIEnabled }, set: { store.setAutomaticAI($0) }))
+          Text("After five quiet minutes in a chosen chat, Relay summarizes the conversation and finds details worth keeping. Reply suggestions appear while you chat. Nothing is sent automatically.")
+            .font(.caption).foregroundStyle(RelayTheme.muted)
+          Text(store.automaticAIStatus).font(.caption).foregroundStyle(RelayTheme.muted)
           Label(
             model.ready ? model.status : "Manual", systemImage: model.ready ? "cpu" : "hand.raised")
           Text(
@@ -79,8 +83,8 @@ struct WorkspaceSettingsView: View {
           }
           if let issue = model.issue { Text(issue).font(.caption).foregroundStyle(RelayTheme.danger) }
           if model.ready {
-            Button(store.processing ? "Processing…" : "Process New Messages") {
-              Task { await store.processMessages(using: model) }
+            Button(store.processing ? "Processing…" : "Check Quiet Conversations") {
+              Task { await store.runAutomaticAI(using: model) }
             }.disabled(store.processing)
           }
           if store.isDemo { Button("Add Sample Conversation") { store.stageDemoConversation() } }

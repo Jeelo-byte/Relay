@@ -370,7 +370,7 @@ export default function Relay() {
         {error && <p role="alert" className="error">{error}</p>}
         {destination === "Recaps" && <RecapsWorkspace recaps={recaps} items={items} onSelectAgreement={setSelected} onSettings={() => navigate("Settings")} />}
         {destination === "Events" && !browse && <EventsWorkspace items={visible} onSelect={setSelected} onBrowse={openBrowse} />}
-        {destination === "People" && <PeopleWorkspace items={items} onSelect={setSelected} />}
+        {destination === "People" && <PeopleWorkspace items={items} recaps={recaps} onSelect={setSelected} />}
         <div hidden={destination !== "Messages"}><LiveMessages items={items} /></div>
         {destination === "Settings" && <WebSettings session={session} items={items} lock={lock} />}
         {destination === "Events" && browse && <>
