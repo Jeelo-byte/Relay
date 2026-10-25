@@ -96,7 +96,7 @@ export async function openBlob(item, dek, account) {
   const obj = JSON.parse(new TextDecoder().decode(padded.slice(0, i)));
   if (
     obj.id.toLowerCase() !== item.row_id ||
-    obj.schema !== "relay.agreement/1"
+    !["relay.agreement/1", "relay.recap/1"].includes(obj.schema)
   )
     throw Error("Unsupported record.");
   return obj;

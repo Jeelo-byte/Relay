@@ -23,6 +23,8 @@ struct WorkspaceSettingsView: View {
           LabeledContent("Sync", value: store.syncStatus)
           Button("Sync Now") { Task { await store.sync() } }.disabled(store.syncing)
           Button("Lock Relay") { store.lock() }
+          NavigationLink("Change Passphrase") { PassphraseSettingsView() }
+          NavigationLink("Delete Account") { DeleteAccountView() }
           Picker("Lock After Inactivity", selection: $lockAfter) {
             Text("1 minute").tag(60)
             Text("5 minutes").tag(300)

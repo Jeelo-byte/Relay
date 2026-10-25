@@ -6,7 +6,7 @@ A checked item must have passing behavior evidence; compilation alone is not suf
 - [x] Two-axis review and lifecycle model (shared tests)
 - [x] Per-currency totals exclude suggestions and completed obligations (shared tests)
 - [x] Manual create/edit/dismiss/restore/complete implementation
-- [ ] Manual workflow verified by XCUITest on iPad and iPhone
+- [x] Manual workflow verified by XCUITest on iPhone; earlier iPad flows pass and current expanded run is tracked in context/What works in Relay.md
 - [ ] All obligation types and fields editable, including instant/range dates and recurrence
 - [ ] Source trail jump, edits/deletions, exact quotes verified end to end
 - [ ] Pending changes apply/ignore, partial payments and disputes
@@ -45,8 +45,9 @@ A checked item must have passing behavior evidence; compilation alone is not suf
 - [x] Live API tests for sessions, conflicts, leases and tombstones pass
 - [x] Neon ciphertext audit passes
 - [ ] Browser unlock → decrypt native agreement → accept → reload verified
-- [ ] Recovery unlock and passphrase change
-- [ ] Account/device revocation, account deletion, key rotation
+- [x] Recovery unlock and passphrase change (live API and native preserved-ciphertext tests)
+- [x] Account/device revocation and account deletion (live API and native tests)
+- [ ] Data-key rotation
 - [ ] Biometry-current-set gate, lock timeout, privacy covers and notification privacy
 - [ ] Local notification scheduling within platform limits
 

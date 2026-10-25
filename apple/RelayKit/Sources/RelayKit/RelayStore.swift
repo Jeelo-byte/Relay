@@ -250,6 +250,8 @@ import SwiftUI
     }
     if session?.account_id != newSession.account_id { try local?.resetSync() }
     session = newSession
+    deviceID = newSession.device_id
+    UserDefaults.standard.set(deviceID.uuidString, forKey: "relay.device")
     try KeychainStore.write(JSONEncoder().encode(newSession), key: "account-session")
     try? KeychainStore.enrollBiometricGate()
     locked = false

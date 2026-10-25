@@ -1,16 +1,15 @@
 # Relay integration status
 
-Verified on October 24, 2026:
-- Private GitHub repository: https://github.com/Jeelo-byte/Relay. Development branch: codex/native-demo.
-- Xcode 27.1 is installed. iOS 27.0 and iOS 27.1 runtimes are installed. Relay iPhone 17 Pro and iPad Pro M4 simulators booted.
-- First native app build passed for macOS and iOS Simulator. Both simulator apps launched.
-- 10 Swift tests passed: cross-language crypto vector, Unicode KDF normalization, AES-GCM tamper rejection, padding, recovery code, encrypted local database/outbox, evidence normalizer, review transitions/totals, room opt-in and merge history.
-- 6 Node tests passed, including a live Neon API test for accounts, wrong credentials, ciphertext writes/pull, optimistic conflicts, leases, tombstones and account isolation by bearer session.
-- Neon project soft-unit-14813306 (Relay), development branch br-crimson-dew-b4uf3v3i. The main branch is unchanged.
+Updated October 25, 2026. The current detailed tracker is [What works in Relay](../context/What%20works%20in%20Relay.md). It separates passing evidence from implemented but unverified work.
 
-Still being integrated and verified:
-- Gemma 4 E2B through the VLM loader, pinned model revision 238767527555cb75a05732a84dff5d6ba0dd6809. No inference claim until weights load and extraction passes.
-- XCUITest interaction checks and rebuilt screenshots after first visual review fixes.
-- Native account creation → encrypted sync → browser unlock on the same real account.
-- Matrix server and bridges. A working server and account links have not been supplied. Docker is installed but its daemon was stopped at initial inspection.
-- Physical-device signing and hardware inference checks. No physical iPad or iPhone is connected yet.
+Current continuation: `codex/account-security`, based on `main` at `1cede3a`. The final visual design implementation is included in baseline `5125b33`.
+
+Verified in the latest continuation:
+
+- 41 Swift tests passed with all live opt-ins enabled: local Gemma extraction/recaps, encrypted Neon agreement/recap round trips, recovery, deletion, and isolated Matrix sending.
+- Eight Node tests passed with the live Neon contract enabled, including credential rotation, recovery invalidation, deletion, and browser agreement/recap authenticated decryption.
+- Five XCUITest flows passed together on iPhone and iPad: manual creation, review/completion/persistence, chat search/source jump, recap photos/sources, and confirmation before sample sending.
+- Web production build passed. The Neon audit found no seeded plaintext markers in 19 blob rows.
+- Synapse and Element are healthy. Seven local bridge containers are running; this does not establish account linking or real third-party traffic.
+
+Still open: dedicated security UI flows, physical-device signing, live account linking and cross-device demo rehearsal, complete web Matrix conversations/sending, iMessage transport/sending, real media handling, synced person notes, actual data-key rotation, offline unlock, field-level sync merging, and the remaining model/provider/accessibility work. See the context tracker for limitations and test artifact names.

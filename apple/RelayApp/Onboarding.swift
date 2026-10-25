@@ -62,6 +62,7 @@ struct AccountView: View {
   @State private var message: String?
   @State private var recovery: String?
   @State private var pending: AccountSession?
+  @State private var recover = false
   var body: some View {
     NavigationStack {
       Group {
@@ -124,6 +125,9 @@ struct AccountView: View {
                 ).font(.caption).foregroundStyle(RelayTheme.warning)
               }
             }
+            if !create {
+              Section { Button("Use Recovery Code") { recover = true } }
+            }
           }.formStyle(.grouped)
         }
       }.navigationTitle(recovery == nil ? "Your Relay Account" : "Recovery Code").toolbar {
@@ -132,6 +136,8 @@ struct AccountView: View {
         }
       }
     }.interactiveDismissDisabled(busy || recovery != nil)
+      .sheet(isPresented: $recover) { AccountRecoveryView(handle: handle, server: server) }
+      .onChange(of: store.session?.token) { _, token in if token != nil && !store.locked && pending == nil { dismiss() } }
       .onAppear {
         if let s = store.session {
           handle = s.handle

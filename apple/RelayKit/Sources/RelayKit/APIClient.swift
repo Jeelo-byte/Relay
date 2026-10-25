@@ -38,9 +38,11 @@ public struct APIError: LocalizedError {
 public final class APIClient {
   public let baseURL: URL
   public var token: String?
-  public init(baseURL: URL, token: String? = nil) {
+  private let transport: URLSession
+  public init(baseURL: URL, token: String? = nil, transport: URLSession = .shared) {
     self.baseURL = baseURL
     self.token = token
+    self.transport = transport
   }
   public func request(_ path: String, method: String = "GET", body: [String: Any]? = nil)
     async throws -> Data
@@ -63,7 +65,7 @@ public final class APIClient {
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
     if let body { request.httpBody = try JSONSerialization.data(withJSONObject: body) }
-    let (data, response) = try await URLSession.shared.data(for: request)
+    let (data, response) = try await transport.data(for: request)
     let status = (response as? HTTPURLResponse)?.statusCode ?? 0
     guard (200..<300).contains(status) else {
       let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]

@@ -3,6 +3,27 @@ import XCTest
 @testable import RelayKit
 
 final class IntegrationTests: XCTestCase {
+  private func isolatedTransport() -> URLSession {
+    let config = URLSessionConfiguration.ephemeral
+    // Tests use the local server's existing hashed-IP limiter with a distinct
+    // fixture identity, just as the Node API tests do. Production limits stay intact.
+    config.httpAdditionalHeaders = ["x-forwarded-for": UUID().uuidString]
+    return URLSession(configuration: config)
+  }
+  @MainActor func testAccountDeletionRequiresFreshProof() async throws {
+    guard ProcessInfo.processInfo.environment["RELAY_VERIFY_NEON"] == "1" else { throw XCTSkip("Opt-in live Neon test.") }
+    let api = APIClient(baseURL: URL(string: "http://localhost:3000")!, transport: isolatedTransport())
+    let handle = "delete_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(10).lowercased()
+    let pass = "Deletion verification unrelated words 2026!"
+    let (session, _) = try await api.signup(handle: handle, passphrase: pass, device: UUID())
+    api.token = session.token
+    do { try await api.deleteAccount(session: session, handle: handle, passphrase: "incorrect"); XCTFail("Incorrect proof accepted") } catch {}
+    let devices = try await api.devices()
+    XCTAssertFalse(devices.isEmpty)
+    try await api.deleteAccount(session: session, handle: handle, passphrase: pass)
+    do { _ = try await api.devices(); XCTFail("Deleted session accepted") } catch {}
+    do { _ = try await api.login(handle: handle, passphrase: pass, device: UUID()); XCTFail("Deleted account accepted") } catch {}
+  }
   @MainActor func testLocalGemmaExtraction() async throws {
     guard ProcessInfo.processInfo.environment["RELAY_VERIFY_MODEL"] == "1" else {
       throw XCTSkip("Opt-in hardware/model test; set RELAY_VERIFY_MODEL=1.")
@@ -45,7 +66,8 @@ final class IntegrationTests: XCTestCase {
       throw XCTSkip("Opt-in live Neon test; set RELAY_VERIFY_NEON=1.")
     }
     let url = URL(string: "http://localhost:3000")!
-    let api = APIClient(baseURL: url)
+    let transport = isolatedTransport()
+    let api = APIClient(baseURL: url, transport: transport)
     let handle =
       "swift_"
       + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12)).lowercased()
@@ -58,7 +80,7 @@ final class IntegrationTests: XCTestCase {
     let a = DemoData.agreements[0]
     let put = try await api.put(a, session: session, base: 0)
     XCTAssertEqual(put.version, 1)
-    let remote = APIClient(baseURL: url, token: second.token)
+    let remote = APIClient(baseURL: url, token: second.token, transport: transport)
     let pull = try await remote.pull(since: 0)
     let blob = try XCTUnwrap(pull.items.first)
     let bytes = try XCTUnwrap(blob.envelope.flatMap(Data.init(base64URL:)))
@@ -72,8 +94,37 @@ final class IntegrationTests: XCTestCase {
     let recapBytes = try XCTUnwrap(recapBlob.envelope.flatMap(Data.init(base64URL:)))
     let recapPlain = try RelayCrypto.open(recapBytes, dek: second.dek, account: second.account_id, row: recap.id, version: recapBlob.version)
     XCTAssertEqual(try JSONDecoder().decode(ConversationRecap.self, from: recapPlain), recap)
+    let updatedPass = "Updated native verification several words 2026!"
+    do {
+      try await api.changePassphrase(session: session, current: "incorrect current passphrase", replacement: updatedPass)
+      XCTFail("Wrong current passphrase accepted")
+    } catch {}
+    try await api.changePassphrase(session: session, current: pass, replacement: updatedPass)
+    do { _ = try await remote.pull(since: 0); XCTFail("Old session survived passphrase update") } catch {}
+    let updatedSession = try await api.login(handle: handle, passphrase: updatedPass, device: UUID())
+    XCTAssertEqual(updatedSession.dek, session.dek)
+    let updatedAPI = APIClient(baseURL: url, token: updatedSession.token, transport: transport)
+    let after = try await updatedAPI.pull(since: 0)
+    let saved = try XCTUnwrap(after.items.first(where: { $0.row_id == a.id }))
+    let savedBytes = try XCTUnwrap(saved.envelope.flatMap(Data.init(base64URL:)))
+    XCTAssertEqual(try JSONDecoder().decode(Agreement.self, from: RelayCrypto.open(savedBytes, dek: updatedSession.dek, account: updatedSession.account_id, row: a.id, version: saved.version)), a)
+    let recoveredPass = "Recovered native verification unrelated words 2026!"
+    do { _ = try await APIClient(baseURL: url, transport: transport).recover(handle: handle, code: RecoveryCode.generate(), replacement: recoveredPass); XCTFail("Wrong recovery code accepted") } catch {}
+    let (recoveredSession, nextCode) = try await APIClient(baseURL: url, transport: transport).recover(handle: handle, code: recovery, replacement: recoveredPass)
+    XCTAssertTrue(RecoveryCode.valid(nextCode))
+    XCTAssertNotEqual(nextCode, recovery)
+    XCTAssertEqual(recoveredSession.dek, session.dek)
+    do { _ = try await updatedAPI.pull(since: 0); XCTFail("Pre-recovery session survived") } catch {}
+    let recoveredAPI = APIClient(baseURL: url, token: recoveredSession.token, transport: transport)
+    let recoveredPull = try await recoveredAPI.pull(since: 0)
+    let recoveredBlob = try XCTUnwrap(recoveredPull.items.first(where: { $0.row_id == a.id }))
+    let recoveredBytes = try XCTUnwrap(recoveredBlob.envelope.flatMap(Data.init(base64URL:)))
+    XCTAssertEqual(try JSONDecoder().decode(Agreement.self, from: RelayCrypto.open(recoveredBytes, dek: recoveredSession.dek, account: recoveredSession.account_id, row: a.id, version: recoveredBlob.version)), a)
+    do { _ = try await APIClient(baseURL: url, transport: transport).recover(handle: handle, code: recovery, replacement: recoveredPass); XCTFail("Replaced recovery code accepted") } catch {}
+    let recoveredLogin = try await api.login(handle: handle, passphrase: recoveredPass, device: UUID())
+    XCTAssertEqual(recoveredLogin.dek, session.dek)
     let credentials = try JSONSerialization.data(withJSONObject: [
-      "handle": handle, "passphrase": pass,
+      "handle": handle, "passphrase": recoveredPass,
     ])
     let target = FileManager.default.temporaryDirectory.appendingPathComponent(
       "relay-integration-account.json")

@@ -29,8 +29,10 @@ The backend needs `DATABASE_URL` and `PRELOGIN_HMAC_SECRET` in a local, ignored 
 
 ## Current checkpoint
 
-Native and web surfaces for the five destinations are in the tree, including recurrence review, reminder planning, calendar draft export, device listing, and passphrase-based device revocation. This is still a working checkpoint. Open work includes full web Matrix conversations and sending, carrying iMessage from the Mac to other devices, live photo handling, synced person notes, account recovery and key rotation, and the remaining accessibility and device checks. See [implementation decisions](docs/DECISIONS.md) and the [feature checklist](docs/FEATURES.md). The original build plan is in [docs/BuildPlan-v5.txt](docs/BuildPlan-v5.txt).
+Native and web surfaces for the five destinations are in the tree, including recurrence review, reminder planning, calendar draft export, device listing, and passphrase-based device revocation. This is still a working checkpoint. Open work includes full web Matrix conversations and sending, carrying iMessage from the Mac to other devices, live photo handling, synced person notes, data-key rotation and offline unlock, and the remaining accessibility and device checks. See [implementation decisions](docs/DECISIONS.md) and the [feature checklist](docs/FEATURES.md). The original build plan is in [docs/BuildPlan-v5.txt](docs/BuildPlan-v5.txt).
 
 ## iMessage on Mac
 
 After Full Disk Access is granted, Relay can read new text from conversations you choose in Messages. Open **Messages → Choose Chats → iMessage**. History before you enable a chat is not imported, and Relay does not send iMessages. Details and limits are in [docs/IMESSAGE.md](docs/IMESSAGE.md).
+
+Account recovery, passphrase changes, and passphrase-confirmed account deletion are available in the native app. See [the current tracker](context/What%20works%20in%20Relay.md) for verified behavior and remaining work.
