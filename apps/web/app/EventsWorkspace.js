@@ -14,6 +14,7 @@ export function formatDue(due) {
   return value.toLocaleString(undefined, { month: "short", day: "numeric", ...(due.type === "instant" ? { hour: "numeric", minute: "2-digit", timeZone: due.tz_assumed || undefined } : {}) }) + (due.ambiguous ? " (assumed)" : "");
 }
 export function Icon({ name, ...props }) {
+  if (name === "logo") return <span className="relay-logo" aria-hidden="true" {...props} />;
   const files = { logo: "imgSymbolBubbleLeftAndBubbleRightFill", events: "imgSymbolCalendar", messages: "imgSymbolBubbleLeftAndBubbleRightFill1", people: "imgSymbolPerson2Fill", settings: "imgSymbolGearshapeFill", recaps: "imgSymbolHouseFill", search: "imgRelayIconMagnifyingglass", filter: "imgSymbolLine3HorizontalDecrease", item: "imgSymbolWaterbottle", chevron: "imgSymbolChevronRight", link: "imgSymbolLink", bell: "imgSymbolBell", privacy: "imgSymbolHandRaised", privacyHero: "imgSymbolHandRaised1", devices: "imgSymbolLaptopcomputer", help: "imgSymbolQuestionmarkCircle" };
   return <img className="design-icon" src={`/figma/${files[name]}.svg`} alt="" aria-hidden="true" {...props} />;
 }

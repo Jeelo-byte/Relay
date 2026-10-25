@@ -319,6 +319,8 @@ footer {
 :root { --secondary-surface:#faf7f3; --selection:#f1e5e5; --accent-text:#500000; }
 .design-icon { display:inline-block; flex-shrink:0; vertical-align:middle; }
 .brand { display:flex; align-items:center; gap:10px; color:var(--accent-text); font-size:28px; margin:0 0 24px; }
+.relay-logo { display:inline-block; width:1.5em; height:1.5em; flex-shrink:0; vertical-align:middle; background:currentColor; mask:url('/brand/relay-mark.svg') center / contain no-repeat; -webkit-mask:url('/brand/relay-mark.svg') center / contain no-repeat; }
+.guide-brand { display:inline-flex; align-items:center; gap:4px; color:var(--accent-text); }
 .shell { grid-template-columns:240px minmax(0,1fr); }
 aside { background:var(--secondary-surface); border:0; height:100dvh; position:sticky; top:0; padding:28px 20px 20px; }
 aside input { border:0; margin-bottom:24px; font-size:14px; }

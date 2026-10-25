@@ -102,8 +102,7 @@ struct RootView: View {
   var wideView: some View {
     NavigationSplitView {
       VStack(alignment: .leading, spacing: 0) {
-        Label("Relay", systemImage: "bubble.left.and.bubble.right.fill")
-          .font(.title.weight(.bold)).foregroundStyle(RelayTheme.accentText)
+        RelayBrand()
           .padding(.horizontal, 20).padding(.vertical, 24)
         List(selection: $destination) {
           ForEach(Destination.allCases) { d in

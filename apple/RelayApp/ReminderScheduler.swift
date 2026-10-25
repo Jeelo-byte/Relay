@@ -4,11 +4,19 @@ import UserNotifications
 
 @MainActor final class ReminderScheduler: ObservableObject {
   @Published var status = ""
-  private let center = UNUserNotificationCenter.current()
+  // UserNotifications raises an Objective-C exception for a bare SwiftPM
+  // executable. Only initialize it when running inside an application bundle.
+  private let center: UNUserNotificationCenter? = {
+    guard Bundle.main.bundleURL.pathExtension == "app",
+      Bundle.main.bundleIdentifier != nil else { return nil }
+    return UNUserNotificationCenter.current()
+  }()
+  private let unavailableMessage = "Reminders require the Relay app bundle. Open Relay.app or run the Relay app scheme in Xcode."
   private var generation = 0
   private var work: Task<Void, Never>?
 
   func enable(agreements: [Agreement]) async -> Bool {
+    guard let center else { status = unavailableMessage; return false }
     do {
       let granted = try await center.requestAuthorization(options: [.alert, .sound])
       guard granted else { status = "Notifications are disabled in system settings."; return false }
@@ -30,6 +38,7 @@ import UserNotifications
     await next.value
   }
   private func schedule(agreements: [Agreement], current: Int) async {
+    guard let center else { status = unavailableMessage; return }
     let pending = await center.pendingNotificationRequests()
     guard current == generation else { return }
     center.removePendingNotificationRequests(withIdentifiers: pending.filter { $0.identifier.hasPrefix("relay.due.") }.map(\.identifier))

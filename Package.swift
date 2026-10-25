@@ -8,8 +8,11 @@ let package = Package(
   targets: [
     .executableTarget(
       name: "RelayApp", dependencies: [.product(name: "RelayKit", package: "RelayKit")],
-      path: "apple/RelayApp"),
+      path: "apple/RelayApp", exclude: ["Assets.xcassets"]),
     .testTarget(
       name: "RelayKitTests", dependencies: [.product(name: "RelayKit", package: "RelayKit")],
       path: "apple/RelayKit/Tests/RelayKitTests"),
+    .testTarget(
+      name: "RelayAppTests", dependencies: ["RelayApp"],
+      path: "apple/RelayAppTests"),
   ], swiftLanguageModes: [.v5])
