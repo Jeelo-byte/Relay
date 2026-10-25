@@ -34,7 +34,9 @@ import Contacts
           privacyCover = phase != .active
           if phase != .active {
             if inactiveSince == nil { inactiveSince = Date() }
+            #if !os(macOS)
             model.cancel()
+            #endif
           } else {
             if let inactiveSince, Date().timeIntervalSince(inactiveSince) >= Double(lockAfter) { store.lock() }
             inactiveSince = nil
@@ -44,6 +46,18 @@ import Contacts
             Task { await store.sync(); await store.syncMatrix(); await syncIMessages() }
           }
         }
+        .task {
+          model.loadCachedIfAvailable()
+          while !Task.isCancelled {
+            #if os(macOS)
+            await store.runAutomaticAI(using: model)
+            #else
+            if scenePhase == .active { await store.runAutomaticAI(using: model) }
+            #endif
+            do { try await Task.sleep(for: .seconds(10)) } catch { break }
+          }
+        }
+        .onChange(of: store.locked) { _, locked in if locked { model.cancel() } }
         .task {
           // Message delivery must not wait behind account uploads or an active Mac window.
           while !Task.isCancelled {

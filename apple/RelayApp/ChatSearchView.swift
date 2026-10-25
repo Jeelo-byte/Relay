@@ -10,16 +10,18 @@ struct ChatSearchView: View {
   @EnvironmentObject private var store: RelayStore
   @Environment(\.dismiss) private var dismiss
   @State private var query = ""
+  @State private var results: [ChatSearch.Hit] = []
+  @State private var searching = false
   var body: some View {
     NavigationStack {
       List {
         if store.locked {
           ContentUnavailableView("Relay Is Locked", systemImage: "lock")
         } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-          ContentUnavailableView("Search Your Chats", systemImage: "text.magnifyingglass", description: Text("Find exact messages in chats you chose. Use quotes for a phrase. Search stays on this device."))
+          ContentUnavailableView("Search Your Chats", systemImage: "text.magnifyingglass", description: Text("Search by meaning or by words in chats you chose. Use quotes for an exact phrase. Search stays on this device."))
         } else {
-          let results = ChatSearch.search(query, messages: store.messages, rooms: store.rooms)
-          if results.isEmpty { ContentUnavailableView.search(text: query) }
+          if searching { ProgressView("Searching chats…") }
+          else if results.isEmpty { ContentUnavailableView.search(text: query) }
           ForEach(results) { hit in
             VStack(alignment: .leading, spacing: 10) {
               Text(hit.message.sender.display_name_snapshot).font(.headline)
@@ -32,16 +34,23 @@ struct ChatSearchView: View {
               }
             }.padding(.vertical, 8)
           }
-          Text("Exact message matches · No generated answer").font(.caption).foregroundStyle(.secondary)
+          Text("Meaning and word matches · Original messages · No generated answer").font(.caption).foregroundStyle(.secondary)
         }
       }.navigationTitle("Search Chats")
         .searchable(text: $query, prompt: "Message, person, or chat")
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
-    }.onChange(of: store.locked) { _, locked in if locked { query = ""; dismiss() } }
+    }.task(id: SearchInput(query: query, messages: store.messages, rooms: store.rooms)) {
+      results = []; searching = true
+      do { try await Task.sleep(for: .milliseconds(200)) } catch { return }
+      let hits = await store.searchChats(query)
+      guard !Task.isCancelled else { return }
+      results = hits; searching = false
+    }.onChange(of: store.locked) { _, locked in if locked { results = []; query = ""; dismiss() } }
     #if os(macOS)
     .frame(minWidth: 520, minHeight: 480)
     #endif
   }
+  private struct SearchInput: Equatable { var query: String; var messages: [ChatMessage]; var rooms: [ChatRoom] }
 }
 
 enum PrivateClipboard {

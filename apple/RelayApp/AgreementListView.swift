@@ -41,9 +41,9 @@ struct AgreementListView: View {
         totals
         if model.ready {
           Button(
-            store.processing ? "Processing Messages…" : "Process New Messages",
+            store.processing ? "Processing Messages…" : "Check Quiet Conversations",
             systemImage: "sparkles"
-          ) { Task { await store.processMessages(using: model) } }.buttonStyle(.bordered).disabled(
+          ) { Task { await store.runAutomaticAI(using: model) } }.buttonStyle(.bordered).disabled(
             store.processing)
         }
         ScrollView(.horizontal, showsIndicators: false) {

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ConversationView: View {
   @EnvironmentObject private var store: RelayStore
+  @EnvironmentObject private var model: ModelManager
   var onCreate: (Agreement) -> Void
   let roomID: String
   var desktopEmbedded = false
@@ -13,6 +14,7 @@ struct ConversationView: View {
   @State private var confirmSend = false
   @State private var confirmDiscard = false
   @FocusState private var composerFocused: Bool
+  private struct ReplyInput: Equatable { var messages: [ChatMessage]; var rooms: [ChatRoom]; var ready: Bool; var enabled: Bool; var idle: Bool }
   private var room: ChatRoom? { store.rooms.first { $0.id == roomID && $0.opted_in } }
   private var messages: [ChatMessage] {
     guard room != nil else { return [] }
@@ -48,10 +50,13 @@ struct ConversationView: View {
               }
             }
           }
-          if let latest = messages.last(where: { !$0.sender.is_self && !$0.redacted }) {
-            Text("REPLY DRAFT · REVIEW BEFORE SENDING").font(.caption2.weight(.semibold)).foregroundStyle(RelayTheme.muted)
-            Button("Could you confirm the next step?") { draft = "Could you confirm the next step?" }.buttonStyle(.bordered)
-              .help("An editable template in response to \(store.displayName(for: latest.sender)). It does not make a commitment.")
+          if room != nil, messages.last?.sender.is_self == false {
+            ForEach(store.replySuggestions[roomID] ?? []) { suggestion in
+              Button { if draft.isEmpty { draft = suggestion.text } } label: {
+                Label(suggestion.text, systemImage: "sparkles")
+              }.buttonStyle(.bordered).disabled(!draft.isEmpty)
+                .help("AI suggestion · Choose to edit before sending")
+            }
           }
         }.padding(20).frame(maxWidth: 900, alignment: .leading).frame(maxWidth: .infinity)
       }.onAppear { reveal(using: proxy) }
@@ -63,6 +68,12 @@ struct ConversationView: View {
       .sheet(isPresented: $confirmSend) { reviewSendView }
       .onAppear {
         if let pending = store.outgoing.last(where: { $0.room_id == roomID && $0.state != "sent" }) { draft = pending.body; transaction = pending.id }
+      }
+      .task(id: ReplyInput(messages: store.messages.filter { $0.room_id == roomID }, rooms: store.rooms, ready: model.ready, enabled: store.automaticAIEnabled, idle: !store.processing && !store.generatingRecap)) {
+        store.clearReplySuggestions(room: roomID)
+        // Suggestions follow the live conversation, independently of recap timing.
+        do { try await Task.sleep(for: .milliseconds(600)) } catch { return }
+        await store.generateReplySuggestions(room: roomID, using: model)
       }
       .confirmationDialog("Discard This Draft?", isPresented: $confirmDiscard, titleVisibility: .visible) {
         Button("Discard Draft", role: .destructive) {

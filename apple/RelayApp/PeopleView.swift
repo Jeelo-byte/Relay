@@ -147,6 +147,22 @@ struct PersonDetailView: View {
             }
           }.buttonStyle(.plain)
         }
+        let context = store.context(for: identities)
+        if !context.isEmpty {
+          Text("From your conversations").font(.title2.bold())
+          ForEach(context.prefix(12)) { evidence in
+            RelayPanel {
+              VStack(alignment: .leading, spacing: 10) {
+                Text(evidence.quote).textSelection(.enabled)
+                Text(Date(timeIntervalSince1970: Double(evidence.ts) / 1000), style: .date).font(.caption).foregroundStyle(RelayTheme.muted)
+                Button("View in Messages") {
+                  store.highlightedMessageID = evidence.room_id + "|" + evidence.event_id
+                  store.highlightedRoomID = evidence.room_id
+                }
+              }
+            }
+          }
+        }
         HStack {
           Text("Worth remembering").font(.title2.bold())
           Spacer()

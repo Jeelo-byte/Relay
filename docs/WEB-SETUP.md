@@ -17,6 +17,8 @@ The server needs `DATABASE_URL` and `PRELOGIN_HMAC_SECRET` in the ignored `apps/
 
 ## Sync the same account
 
+The default is now **QR device pairing**: on an unlocked device choose **Settings → Devices → Pair a Device**, scan from the new device, compare the check code, and approve. See [device pairing](DEVICE-PAIRING.md). The server must already be reachable; pairing does not configure HTTPS or message integrations. The passphrase steps below remain available as a fallback.
+
 1. In the native app, create or unlock a Relay account with the server set to `http://localhost:3000` on this Mac. A workspace started with **Start on This Device** has no signed-in account and does not automatically sync.
 2. Unlock the website with that same **Relay handle and passphrase**. The browser derives its keys locally and decrypts the saved agreements and recaps.
 3. Sync the native app after saving. The website pulls on unlock, every 30 seconds, on focus, on reconnection, or when you choose the toolbar refresh button.

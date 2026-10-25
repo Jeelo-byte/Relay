@@ -31,7 +31,7 @@ struct WelcomeView: View {
             symbol: "lock.shield")
         }
         VStack(spacing: 12) {
-          Button("Create or Unlock Account") { showAccount = true }.buttonStyle(.borderedProminent)
+          Button("Pair This Device") { showAccount = true }.buttonStyle(.borderedProminent)
             .controlSize(.large).frame(maxWidth: .infinity)
           Button("Start on This Device") { store.beginManual() }.font(.subheadline)
         }.frame(maxWidth: .infinity)
@@ -56,6 +56,7 @@ struct AccountView: View {
   @EnvironmentObject var store: RelayStore
   @Environment(\.dismiss) var dismiss
   @State private var create = false
+  @State private var pair = true
   @State private var handle = ""
   @State private var passphrase = ""
   @State private var confirm = ""
@@ -78,57 +79,66 @@ struct AccountView: View {
         } else {
           SettingsPage(title: "Your Relay Account", subtitle: "Your private account, encrypted on this device.", symbol: "person.crop.circle") {
             SettingsCard {
-              Picker("Account", selection: $create) {
-                Text("Unlock Account").tag(false)
-                Text("Create Account").tag(true)
-              }.pickerStyle(.segmented)
-            }
-            SettingsCard("Your Private Account") {
-              TextField("Handle", text: $handle).textContentType(.username).autocorrectionDisabled()
-              SecureField("Passphrase", text: $passphrase).textContentType(
-                create ? .newPassword : .password)
-              if create {
-                SecureField("Confirm Passphrase", text: $confirm)
-                Text("Use at least 12 characters. Several unrelated words work well.").font(
-                  .caption
-                ).foregroundStyle(RelayTheme.muted)
+              if pair {
+                JoinDeviceView()
+                Button("Create Account") { pair = false; create = true }
+                Button("Use My Passphrase") { pair = false; create = false }
+              } else {
+                Button("Pair This Device Instead") { pair = true; passphrase = ""; confirm = "" }
+                Picker("Account", selection: $create) {
+                  Text("Unlock Account").tag(false)
+                  Text("Create Account").tag(true)
+                }.pickerStyle(.segmented)
               }
             }
-            SettingsCard("Sync Server") {
-              TextField("HTTPS Server Address", text: $server).autocorrectionDisabled()
-              Text(
-                "For this local demo, use http://localhost:3000 on the Mac or simulator. Physical devices need an HTTPS address."
-              ).font(.caption).foregroundStyle(RelayTheme.muted)
-            }
-            if let message {
-              SettingsCard {
-                Label(message, systemImage: "exclamationmark.circle").foregroundStyle(
-                  RelayTheme.danger)
-              }
-            }
-            SettingsCard {
-              Button(action: submit) {
-                HStack {
-                  if busy { ProgressView().controlSize(.small) }
-                  Text(
-                    busy ? "Securing Your Account…" : (create ? "Create Account" : "Unlock Account")
-                  )
-                  Spacer()
-                  Image(systemName: "arrow.right")
+            if !pair {
+              SettingsCard("Your Private Account") {
+                TextField("Handle", text: $handle).textContentType(.username).autocorrectionDisabled()
+                SecureField("Passphrase", text: $passphrase).textContentType(
+                  create ? .newPassword : .password)
+                if create {
+                  SecureField("Confirm Passphrase", text: $confirm)
+                  Text("Use at least 12 characters. Several unrelated words work well.").font(
+                    .caption
+                  ).foregroundStyle(RelayTheme.muted)
                 }
-              }.disabled(busy)
-              Text("No email required. Your passphrase derives your encryption key on this device.")
-                .font(.caption).foregroundStyle(RelayTheme.muted)
-            }
-            if create {
-              SettingsCard {
-                Text(
-                  "If you lose your passphrase, all your devices, and your recovery code, nobody — including us — can recover your agreements."
-                ).font(.caption).foregroundStyle(RelayTheme.warning)
               }
-            }
-            if !create {
-              SettingsCard { Button("Use Recovery Code") { recover = true } }
+              SettingsCard("Sync Server") {
+                TextField("HTTPS Server Address", text: $server).autocorrectionDisabled()
+                Text(
+                  "For this local demo, use http://localhost:3000 on the Mac or simulator. Physical devices need an HTTPS address."
+                ).font(.caption).foregroundStyle(RelayTheme.muted)
+              }
+              if let message {
+                SettingsCard {
+                  Label(message, systemImage: "exclamationmark.circle").foregroundStyle(
+                    RelayTheme.danger)
+                }
+              }
+              SettingsCard {
+                Button(action: submit) {
+                  HStack {
+                    if busy { ProgressView().controlSize(.small) }
+                    Text(
+                      busy ? "Securing Your Account…" : (create ? "Create Account" : "Unlock Account")
+                    )
+                    Spacer()
+                    Image(systemName: "arrow.right")
+                  }
+                }.disabled(busy)
+                Text("No email required. Your passphrase derives your encryption key on this device.")
+                  .font(.caption).foregroundStyle(RelayTheme.muted)
+              }
+              if create {
+                SettingsCard {
+                  Text(
+                    "If you lose your passphrase, all your devices, and your recovery code, nobody — including us — can recover your agreements."
+                  ).font(.caption).foregroundStyle(RelayTheme.warning)
+                }
+              }
+              if !create {
+                SettingsCard { Button("Use Recovery Code") { recover = true } }
+              }
             }
           }
         }
@@ -142,6 +152,7 @@ struct AccountView: View {
       .onChange(of: store.session?.token) { _, token in if token != nil && !store.locked && pending == nil { dismiss() } }
       .onAppear {
         if let s = store.session {
+          pair = false
           handle = s.handle
           server = s.baseURL.absoluteString
         }

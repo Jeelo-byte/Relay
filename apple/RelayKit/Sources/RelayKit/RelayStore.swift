@@ -23,6 +23,16 @@ import SwiftUI
   @Published public var toast: String?
   @Published public var syncIssues = 0
   @Published public var processing = false
+  @Published public private(set) var automaticAIEnabled = true
+  @Published public private(set) var automaticAIStatus = "Waiting for a conversation pause"
+  @Published public private(set) var automaticAIError: String?
+  @Published public private(set) var replySuggestions: [String: [ContextualReply]] = [:]
+  @Published public private(set) var replyAIErrors: [String: String] = [:]
+  private var automaticAIState = AutomaticAIState()
+  private var automaticRetryAfter: [UUID: Int64] = [:]
+  private var replying = Set<String>()
+  private var aiConsentGeneration = UUID()
+  private let semanticIndex = SemanticChatSearch()
   @Published public var highlightedMessageID: String?
   @Published public var highlightedRoomID: String?
   @Published public var matrixStatus = "Not Connected"
@@ -54,6 +64,7 @@ import SwiftUI
   private let notesRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000003")!
   private let outgoingRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000004")!
   private let contactsRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000005")!
+  private let aiRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000006")!
   public init(localStore: LocalStore? = nil, restoreSession: Bool = true) {
     deviceID =
       UUID(uuidString: UserDefaults.standard.string(forKey: "relay.device") ?? "") ?? UUID()
@@ -73,7 +84,7 @@ import SwiftUI
       #else
         local = try localStore ?? LocalStore()
       #endif
-      for id in try local!.ids() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord && id != contactsRecord {
+      for id in try local!.ids() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord && id != contactsRecord && id != aiRecord {
         if let header = try local!.load(RecordHeader.self, id: id), header.schema == "relay.recap/1" {
           if let recap = try local!.load(ConversationRecap.self, id: id) { recaps.append(recap) }
         } else if let a = try local!.load(Agreement.self, id: id) { agreements.append(a) }
@@ -83,6 +94,8 @@ import SwiftUI
       personNotes = try local!.load([String: String].self, id: notesRecord) ?? [:]
       outgoing = try local!.load([OutgoingMessage].self, id: outgoingRecord) ?? []
       contacts = try local!.load([ContactProfile].self, id: contactsRecord) ?? []
+      automaticAIState = try local!.load(AutomaticAIState.self, id: aiRecord) ?? AutomaticAIState()
+      automaticAIEnabled = (try local!.meta("automatic_ai")) != "false"
       isDemo = (try local!.meta("demo")) == "true"
       started = (try local!.meta("started")) == "true"
       includeAllWhatsApp = (try local!.meta("whatsapp_all_chats")) == "true"
@@ -118,7 +131,7 @@ import SwiftUI
   public var visible: [Agreement] { agreements.filter { $0.review_state != .dismissed } }
   public var dismissed: [Agreement] { agreements.filter { $0.review_state == .dismissed } }
   public var pendingCount: Int {
-    (try? local?.dirtyIDs().filter { $0 != chatRecord && $0 != roomsRecord && $0 != notesRecord && $0 != outgoingRecord && $0 != contactsRecord }.count) ?? 0
+    (try? local?.dirtyIDs().filter { $0 != chatRecord && $0 != roomsRecord && $0 != notesRecord && $0 != outgoingRecord && $0 != contactsRecord && $0 != aiRecord }.count) ?? 0
   }
   public func beginManual() {
     started = true
@@ -308,6 +321,9 @@ import SwiftUI
     contactNameGeneration += 1
     contactNames = ContactNameIndex()
     workspaceGeneration = UUID()
+    replySuggestions = [:]
+    replyAIErrors = [:]; automaticAIError = nil
+    Task { await semanticIndex.clear() }
     // Sample data never silently joins a real account.
     if isDemo {
       for a in agreements { try local?.remove(a.id) }
@@ -327,6 +343,7 @@ import SwiftUI
       cacheChats()
     }
     if let previous = session, previous.account_id != newSession.account_id {
+      automaticAIState = AutomaticAIState(); automaticRetryAfter = [:]
       for id in (try? local?.ids()) ?? [] { try local?.remove(id) }
       agreements = []
       recaps = []
@@ -350,6 +367,9 @@ import SwiftUI
   }
   public func lock() {
     workspaceGeneration = UUID()
+    replySuggestions = [:]
+    replyAIErrors = [:]; automaticAIError = nil
+    Task { await semanticIndex.clear() }
     if session != nil {
       locked = true
       contactNames = ContactNameIndex()
@@ -384,6 +404,9 @@ import SwiftUI
   public func signOut() {
     contactNameGeneration += 1
     workspaceGeneration = UUID()
+    replySuggestions = [:]
+    replyAIErrors = [:]; automaticAIError = nil
+    Task { await semanticIndex.clear() }
     syncTask?.cancel()
     imessageStatus = "Not Connected"
     imessageError = nil
@@ -402,6 +425,7 @@ import SwiftUI
     session = nil
     KeychainStore.delete("account-session")
     KeychainStore.delete("ui-biometric-gate")
+    automaticAIState = AutomaticAIState(); automaticRetryAfter = [:]
     agreements = []
     recaps = []
     messages = []
@@ -422,6 +446,8 @@ import SwiftUI
       try local?.saveCollection(messages, id: chatRecord)
       try local?.saveCollection(rooms, id: roomsRecord)
       rebuildRecaps()
+      let snapshot = messages, selected = rooms
+      Task { await semanticIndex.update(messages: snapshot, rooms: selected) }
     } catch { self.error = error.localizedDescription }
   }
   @discardableResult public func savePersonNote(_ note: String, party: String) -> Bool {
@@ -436,6 +462,8 @@ import SwiftUI
     } catch { self.error = error.localizedDescription; return false }
   }
   public func setOptIn(_ id: String, _ opted: Bool) {
+    aiConsentGeneration = UUID()
+    replySuggestions[id] = []
     if let i = rooms.firstIndex(where: { $0.id == id }) {
       matrixSelectionVersion += 1
       if opted && !rooms[i].opted_in && !id.hasPrefix("imessage:") {
@@ -472,7 +500,7 @@ import SwiftUI
     defer { syncing = false }
     let api = APIClient(baseURL: s.baseURL, token: s.token)
     do {
-      for id in try local.dirtyIDs() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord && id != contactsRecord {
+      for id in try local.dirtyIDs() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord && id != contactsRecord && id != aiRecord {
         if let recap = recaps.first(where: { $0.id == id }) {
           try await syncRecap(recap, session: s, local: local, api: api)
           guard session?.account_id == s.account_id, !locked else { return }
@@ -1147,7 +1175,7 @@ extension RelayStore {
 private struct RecordHeader: Decodable { var schema: String }
 extension RelayStore {
   public func rebuildRecaps() {
-    guard !locked else { return }
+    guard !locked, isDemo else { return }
     for var recap in RecapEngine.highlights(messages: messages, rooms: rooms) {
       if let previous = recaps.first(where: { $0.room_id == recap.room_id && $0.day == recap.day }) {
         if previous.source_fingerprint == recap.source_fingerprint && previous.room_name == recap.room_name { continue }
@@ -1320,5 +1348,253 @@ extension RelayStore {
       outgoing = updated
       return true
     } catch { self.error = error.localizedDescription; return false }
+  }
+}
+
+extension RelayStore {
+  public func setAutomaticAI(_ enabled: Bool) {
+    aiConsentGeneration = UUID()
+    automaticAIEnabled = enabled
+    automaticAIStatus = enabled ? "Waiting for a conversation pause" : "Automatic AI paused"
+    if !enabled { replySuggestions = [:] }
+    try? local?.setMeta("automatic_ai", value: enabled ? "true" : "false")
+  }
+
+  public func searchChats(_ query: String) async -> [ChatSearch.Hit] {
+    guard !locked else { return [] }
+    let generation = workspaceGeneration
+    let hits = await semanticIndex.search(query, messages: messages, rooms: rooms)
+    guard !locked, generation == workspaceGeneration else { return [] }
+    let allowed = Set(rooms.filter(\.opted_in).map(\.id))
+    let current = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+    return hits.filter { allowed.contains($0.message.room_id) && current[$0.id] == $0.message }
+  }
+
+  /// Source quotes are attached to their speaker, never to everyone in a group.
+  /// These are conversation context, not inferred biographical facts.
+  public func context(for parties: Set<String>) -> [Evidence] {
+    guard !locked else { return [] }
+    let allowed = Set(rooms.filter(\.opted_in).map(\.id))
+    var seen = Set<String>()
+    return recaps.filter { $0.source_changed != true && $0.suppressed != true && allowed.contains($0.room_id) }
+      .flatMap { $0.worth_keeping ?? [] }
+      .filter { evidence in
+        guard parties.contains(evidence.sender_party_id), evidence.source_state == "ok",
+          let source = messages.first(where: { $0.room_id == evidence.room_id && $0.event_id == evidence.event_id }),
+          !source.redacted, source.text.contains(evidence.quote) else { return false }
+        return seen.insert(evidence.room_id + "|" + evidence.event_id + "|" + evidence.quote).inserted
+      }.sorted { $0.ts > $1.ts }
+  }
+
+  public func generateReplySuggestions(room id: String, using model: ConversationModel) async {
+    replySuggestions[id] = []
+    guard automaticAIEnabled, !locked, model.ready, !processing, !generatingRecap,
+      !replying.contains(id), rooms.contains(where: { $0.id == id && $0.opted_in }) else { return }
+    let source = replyContext(id)
+    guard source.last?.sender.is_self == false else { replySuggestions[id] = []; return }
+    let generation = workspaceGeneration
+    let consent = aiConsentGeneration
+    replying.insert(id)
+    defer { replying.remove(id) }
+    func check() throws {
+      try Task.checkCancellation()
+      guard automaticAIEnabled, !locked, generation == workspaceGeneration, consent == aiConsentGeneration,
+        rooms.contains(where: { $0.id == id && $0.opted_in }), replyContext(id) == source else { throw CancellationError() }
+    }
+    do {
+      let prompt = try ContextualReplies.prompt(messages: source)
+      let output = try await model.generate(prompt)
+      try check()
+      let suggestions: [ContextualReply]
+      do { suggestions = try ContextualReplies.parse(output, messages: source) }
+      catch {
+        let repaired = try await model.generate(prompt + "\nThe previous output failed validation. Return exactly the JSON schema above. Each suggestion needs text, m, and a quote copied exactly from that message. No other format.")
+        try check()
+        suggestions = try ContextualReplies.parse(repaired, messages: source)
+      }
+      replySuggestions[id] = suggestions
+      replyAIErrors.removeValue(forKey: id)
+    } catch {
+      // A missing suggestion never blocks ordinary messaging or overwrites a draft.
+      if generation == workspaceGeneration { replySuggestions[id] = []; replyAIErrors[id] = error.localizedDescription }
+    }
+  }
+  public func clearReplySuggestions(room id: String) { replySuggestions[id] = [] }
+  private func replyContext(_ id: String) -> [ChatMessage] {
+    Array(messages.filter { $0.room_id == id && !$0.redacted && $0.kind == "text" }
+      .sorted { $0.ts == $1.ts ? $0.id < $1.id : $0.ts < $1.ts }.suffix(12))
+  }
+
+  /// Called by the app while running and unlocked. The durable encrypted
+  /// checkpoint includes empty results, so small talk is not processed repeatedly.
+  public func runAutomaticAI(using model: ConversationModel, now: Int64 = Clock.ms) async {
+    guard automaticAIEnabled, !locked, !isDemo, !processing, !generatingRecap, replying.isEmpty else { return }
+    guard model.ready else { automaticAIStatus = "Load the local model in Settings to enable automatic AI"; return }
+    let closed = ConversationSession.closed(messages: messages, rooms: rooms, now: now)
+    guard let session = closed.first(where: {
+      automaticAIState.completed[$0.id.uuidString] != $0.fingerprint && (automaticRetryAfter[$0.id] ?? 0) <= now
+    }) else { automaticAIStatus = "Waiting for a conversation pause"; return }
+    let generation = workspaceGeneration
+    let consent = aiConsentGeneration
+    processing = true
+    defer { processing = false }
+    let account = self.session
+    let api = account.map { APIClient(baseURL: $0.baseURL, token: $0.token) }
+    let leaseKey = account.map { RelayCrypto.lease(dek: $0.dek, room: session.room.id, lastEvent: session.fingerprint) }
+    func lease() async throws -> (owned: Bool, done: Bool) {
+      guard let api, let leaseKey, let account else { return (true, false) }
+      let response = try await api.request("leases/acquire", method: "POST", body: ["lease_key": leaseKey, "ttl_s": 300])
+      guard let value = try JSONSerialization.jsonObject(with: response) as? [String: Any] else { throw VaultError.invalidEnvelope }
+      let holder = (value["holder_device_id"] as? String).flatMap(UUID.init(uuidString:))
+      return (value["state"] as? String == "held" && holder == account.device_id, value["state"] as? String == "done")
+    }
+    func check() throws {
+      try Task.checkCancellation()
+      guard automaticAIEnabled, !locked, generation == workspaceGeneration, consent == aiConsentGeneration,
+        let current = ConversationSession.closed(messages: messages, rooms: rooms, now: now).first(where: { $0.id == session.id }),
+        current.fingerprint == session.fingerprint, current.lastActivity == session.lastActivity else { throw CancellationError() }
+    }
+    do {
+      let ownership = try await lease()
+      try check()
+      if !ownership.owned {
+        if ownership.done {
+          var state = automaticAIState; state.completed[session.id.uuidString] = session.fingerprint
+          try local?.saveCollection(state, id: aiRecord); automaticAIState = state
+          await sync()
+        }
+        automaticRetryAfter[session.id] = now + 30_000
+        automaticAIStatus = ownership.done ? "Conversation processed on another device" : "Another device is processing this conversation"
+        return
+      }
+      var parts: [ConversationRecap] = []
+      var staged = agreements
+      let normalizer = Normalizer()
+      for (index, chunk) in session.chunks.enumerated() {
+        try check()
+        automaticAIStatus = "Reading \(session.room.name) · Part \(index + 1) of \(session.chunks.count)"
+        guard var draft = RecapEngine.highlights(messages: chunk, rooms: [session.room]).first else { continue }
+        draft.covered_event_ids = chunk.map(\.event_id)
+        let prompt = try RecapEngine.prompt(for: draft, messages: chunk)
+        let output = try await model.generate(prompt)
+        try check()
+        let recap: ConversationRecap
+        do { recap = try RecapEngine.apply(output, to: draft, messages: chunk) }
+        catch {
+          let repaired = try await model.generate(prompt + "\nYour previous output was invalid. Return valid JSON and exact source quotes, or an empty summary with empty evidence if there is nothing meaningful.")
+          try check()
+          recap = try RecapEngine.apply(repaired, to: draft, messages: chunk)
+        }
+        if !recap.summary.isEmpty { parts.append(recap) }
+        let prior = staged.filter { $0.source_room_ids.contains(session.room.id) }
+        let covered = Set(prior.flatMap(\.covered_event_ids))
+        let needsExtraction = chunk.contains { message in
+          let triage = normalizer.triage(message.text)
+          return (!covered.contains(message.event_id) || message.edited) &&
+            (triage.1 >= 2 || (!prior.isEmpty && ["change", "completion", "cancel", "acceptance"].contains(triage.0)))
+        }
+        if needsExtraction {
+          let window = Extraction.window(chunk, existing: prior)
+          let output = try await model.generate(window.prompt)
+          try check()
+          let extracted: ExtractionResult
+          do { extracted = try Extraction.parse(output, window: window, normalizer: normalizer) }
+          catch {
+            let repaired = try await model.generate(window.prompt + "\nCorrect the validation error: " + error.localizedDescription + ". Return JSON only with exact quotes and supports arrays.")
+            try check()
+            extracted = try Extraction.parse(repaired, window: window, normalizer: normalizer)
+          }
+          for item in extracted.agreements {
+            guard var new = Extraction.agreement(item, window: window, normalizer: normalizer, device: deviceID) else { continue }
+            if item.op == "create", let anchor = new.evidence.sorted(by: { $0.ts == $1.ts ? $0.event_id < $1.event_id : $0.ts < $1.ts }).first {
+              let parties = new.obligations.map { $0.obligor_party_id + ">" + $0.obligee_party_id }.sorted().joined(separator: "|")
+              new.id = ConversationSession.identifier("automatic-agreement|" + session.room.id + "|" + new.kind.rawValue + "|" + anchor.event_id + "|" + parties)
+            }
+            let target = item.op == "create" ? new.id : item.target_id.flatMap(UUID.init(uuidString:))
+            if let target, let i = staged.firstIndex(where: { $0.id == target && $0.source_room_ids.contains(session.room.id) }) {
+              guard staged[i].review_state != .dismissed else { continue }
+              for source in new.evidence where !staged[i].evidence.contains(where: { $0.event_id == source.event_id && $0.quote == source.quote }) {
+                staged[i].evidence.append(source)
+              }
+              staged[i].covered_event_ids = Array(Set(staged[i].covered_event_ids + new.covered_event_ids))
+              let changes = item.op == "complete" || item.op == "cancel"
+                ? [TimelineEvent("term_change_suggested", actor: "ai", field: "lifecycle", old: staged[i].lifecycle.rawValue, new: item.op == "complete" ? "fulfilled" : "cancelled", pending: true)]
+                : AgreementChanges.suggestions(from: new, for: staged[i])
+              for change in changes where !staged[i].timeline.contains(where: { $0.actor == "ai" && $0.field_path == change.field_path && $0.new == change.new }) {
+                staged[i].timeline.append(change)
+              }
+            } else if item.op == "create" {
+              // Overlapping windows and retries must not duplicate reviewed records.
+              let duplicate = staged.contains { old in
+                old.kind == new.kind && old.source_room_ids.contains(session.room.id) &&
+                  old.evidence.contains { e in new.evidence.contains { $0.event_id == e.event_id && $0.quote == e.quote } }
+              }
+              if !duplicate { staged.append(new) }
+            }
+          }
+        }
+      }
+      // Pairwise consolidation keeps every chunk in context and bounds each
+      // prompt to at most 24 cited source messages, including across midnight.
+      while parts.count > 1 {
+        var next: [ConversationRecap] = []
+        for start in stride(from: 0, to: parts.count, by: 2) {
+          try check()
+          let group = Array(parts[start..<min(start + 2, parts.count)])
+          if group.count == 1 { next.append(group[0]); continue }
+          let (draft, prompt) = try RecapEngine.consolidation(group, messages: session.messages, room: session.room)
+          let output = try await model.generate(prompt)
+          try check()
+          let merged: ConversationRecap
+          do { merged = try RecapEngine.apply(output, to: draft, messages: session.messages) }
+          catch {
+            let repaired = try await model.generate(prompt + "\nThe previous output failed validation. Return the required JSON with exact original quotes, using only message IDs in the chat block.")
+            try check()
+            merged = try RecapEngine.apply(repaired, to: draft, messages: session.messages)
+          }
+          if !merged.summary.isEmpty { next.append(merged) }
+        }
+        parts = next
+      }
+      try check()
+      let ownershipAtSave = try await lease()
+      try check()
+      guard ownershipAtSave.owned else { throw CancellationError() }
+      if var recap = parts.first, session.messages.count >= 6 || staged.count > agreements.count || !(recap.worth_keeping ?? []).isEmpty {
+        recap.id = session.id; recap.source_fingerprint = session.fingerprint
+        recap.covered_event_ids = session.messages.map(\.event_id); recap.message_count = session.messages.count
+        recap.conversation_started_at = session.messages.first?.ts; recap.conversation_ended_at = session.lastActivity
+        recap.automatic = true
+        recap.participant_snapshots = Dictionary(session.messages.map(\.sender).filter { !$0.is_self }.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last }).values.sorted { $0.id < $1.id }
+        recap.created_at = recaps.first(where: { $0.id == session.id })?.created_at ?? Clock.ms
+        guard saveRecap(recap) else { throw VaultError.locked }
+      } else if var old = recaps.first(where: { $0.id == session.id && $0.automatic == true }) {
+        // Sync suppression, rather than deleting only the device's copy and
+        // leaving an obsolete summary visible on other devices.
+        old.suppressed = true; old.summary = ""; old.evidence = []; old.worth_keeping = []
+        old.source_fingerprint = session.fingerprint
+        guard saveRecap(old) else { throw VaultError.locked }
+      }
+      for value in staged where !agreements.contains(value) {
+        guard save(value) else { throw VaultError.locked }
+      }
+      var state = automaticAIState
+      state.completed[session.id.uuidString] = session.fingerprint
+      try local?.saveCollection(state, id: aiRecord)
+      automaticAIState = state; automaticRetryAfter.removeValue(forKey: session.id)
+      automaticAIError = nil
+      automaticAIStatus = "Conversation processed · Waiting for new messages"
+      if let api, let leaseKey {
+        await sync()
+        try check()
+        if pendingCount == 0 { _ = try await api.request("leases/complete", method: "POST", body: ["lease_key": leaseKey]) }
+      }
+    } catch is CancellationError {
+      automaticAIStatus = "Conversation changed · Waiting for a pause"
+    } catch {
+      automaticAIError = error.localizedDescription
+      automaticRetryAfter[session.id] = now + 60_000
+      automaticAIStatus = "AI could not verify this conversation · Retrying in a minute"
+    }
   }
 }

@@ -18,6 +18,7 @@ import SwiftUI
   @Published public var issue: String?
   private var loadTask: Task<Void, Never>?
   private var inference: Task<String, Error>?
+  private var triedCachedModel = false
   #if canImport(MLXVLM) && !targetEnvironment(simulator)
     private var container: ModelContainer?
   #endif
@@ -32,6 +33,17 @@ import SwiftUI
     #if !canImport(MLXVLM) || targetEnvironment(simulator)
       status = "Manual · Local Model Unavailable"
     #endif
+  }
+  /// Resume a previously downloaded model automatically. First installation still
+  /// exposes the explicit multi-GB download in Settings.
+  public func loadCachedIfAvailable() {
+    guard !triedCachedModel, !ready, !working, Self.supported else { return }
+    triedCachedModel = true
+    let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+      .appendingPathComponent("Relay/Models")
+    guard let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil),
+      files.contains(where: { ($0 as? URL)?.pathExtension == "safetensors" }) else { return }
+    load()
   }
   public static func modelDirectory() throws -> URL {
     var url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]

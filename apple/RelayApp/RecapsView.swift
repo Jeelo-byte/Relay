@@ -17,7 +17,7 @@ struct RecapsView: View {
   @State private var photos = false
   private var available: [ConversationRecap] {
     store.recaps.filter { recap in
-      store.rooms.first(where: { $0.id == recap.room_id })?.opted_in ?? true
+      recap.suppressed != true && (store.rooms.first(where: { $0.id == recap.room_id })?.opted_in ?? true)
     }.sorted { $0.day == $1.day ? $0.room_name < $1.room_name : $0.day > $1.day }
   }
   private var filtered: [ConversationRecap] {
@@ -29,6 +29,7 @@ struct RecapsView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day())).font(.subheadline).foregroundStyle(RelayTheme.muted)
+        Text(store.automaticAIStatus).font(.caption).foregroundStyle(RelayTheme.muted)
         HStack {
           Text(store.isDemo ? "Sample conversations, remembered." : "Your chosen conversations.").font(.headline)
           Spacer()
@@ -138,7 +139,9 @@ struct RecapsView: View {
           Spacer()
           Menu {
             Button("Open Recap") { selected = recap.id }
-            Button("Generate Local Recap") { Task { await store.generateRecap(recap.id, using: model) } }.disabled(!model.ready || store.generatingRecap || store.processing)
+            if recap.automatic != true {
+              Button("Generate Local Recap") { Task { await store.generateRecap(recap.id, using: model) } }.disabled(!model.ready || store.generatingRecap || store.processing)
+            }
           } label: { Label("Recap Actions", systemImage: "ellipsis") }.labelStyle(.iconOnly)
         }
         if store.isDemo && recap.room_id == DemoData.rooms[0].id {
@@ -169,13 +172,22 @@ struct RecapDetailView: View {
   var onAgreement: (UUID) -> Void
   var body: some View {
     ScrollView {
-      if let recap = store.recaps.first(where: { $0.id == id }) {
+      if let recap = store.recaps.first(where: { $0.id == id && $0.suppressed != true }) {
         VStack(alignment: .leading, spacing: 24) {
           Text(recap.title).font(.largeTitle.bold())
           SourceBadge(title: "\(recap.room_name) · \(recap.day)")
           Text(recap.summary).font(.body).textSelection(.enabled)
           Text(recap.generated_by == "local_mlx" ? "Generated on this device. Check the sources before relying on the recap." : "Exact quoted highlights. No model inference is claimed.").font(.caption).foregroundStyle(RelayTheme.muted)
           if recap.source_changed == true { Label("A source changed after this recap was saved.", systemImage: "exclamationmark.triangle").foregroundStyle(RelayTheme.warning) }
+          if let keeping = recap.worth_keeping, !keeping.isEmpty {
+            Text("Worth keeping").font(.title2.bold())
+            ForEach(keeping) { evidence in
+              Button {
+                store.highlightedMessageID = evidence.room_id + "|" + evidence.event_id
+                onSource(evidence)
+              } label: { Label(evidence.quote, systemImage: "bookmark") }.buttonStyle(.bordered)
+            }
+          }
           Text("Original sources").font(.title2.bold())
           ForEach(recap.evidence) { evidence in
             RelayPanel {
@@ -194,8 +206,10 @@ struct RecapDetailView: View {
             Text("Plans to keep").font(.title2.bold())
             ForEach(agreements) { agreement in Button(agreement.title) { onAgreement(agreement.id) }.buttonStyle(.bordered) }
           }
-          Button(store.generatingRecap ? "Generating…" : "Generate Local Recap", systemImage: "sparkles") { Task { await store.generateRecap(id, using: model) } }
-            .buttonStyle(.borderedProminent).disabled(!model.ready || store.generatingRecap || store.processing)
+          if recap.automatic != true {
+            Button(store.generatingRecap ? "Generating…" : "Generate Local Recap", systemImage: "sparkles") { Task { await store.generateRecap(id, using: model) } }
+              .buttonStyle(.borderedProminent).disabled(!model.ready || store.generatingRecap || store.processing)
+          }
           if !model.ready { Text("Load Gemma in Settings to generate a written recap. Quoted highlights work without a model.").font(.caption).foregroundStyle(RelayTheme.muted) }
         }.padding(24).frame(maxWidth: 800, alignment: .leading).frame(maxWidth: .infinity)
       }

@@ -44,7 +44,7 @@ for service in "$@"; do
 done
 "${compose[@]}" up -d synapse element "$@" >&2
 # Restart to load newly added registrations while retaining accounts and databases.
-"${compose[@]}" restart synapse >&2
+"${compose[@]}" restart synapse "$@" >&2
 # Use Synapse's own Python runtime; no host Python, pip, or Node installation needed.
 "${compose[@]}" exec -T -u root -e RELAY_MATRIX_PORT="${RELAY_MATRIX_PORT:-8008}" synapse python - < "$assets/account.py"
 echo 'Message server ready. Link each selected account in Relay.' >&2

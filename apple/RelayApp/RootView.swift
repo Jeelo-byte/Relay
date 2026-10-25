@@ -43,7 +43,9 @@ struct RootView: View {
     Group {
       if store.locked {
         UnlockView()
-      } else if !store.started || store.setupActive {
+      } else if !store.started {
+        WelcomeView(showAccount: $account).onAppear { store.setupActive = true }
+      } else if store.setupActive {
         MessageOnboardingView(onClose: { store.leaveSetup() }, onMessages: { store.leaveSetup(); destination = .inbox })
       } else if compact {
         compactView
@@ -59,6 +61,7 @@ struct RootView: View {
     .sheet(item: $editor) { a in AgreementEditor(agreement: a) { store.save($0) } }
     .sheet(isPresented: $account) { AccountView() }
     .onReceive(NotificationCenter.default.publisher(for: .relayNew)) { _ in newAgreement() }
+    .onChange(of: store.highlightedRoomID) { _, id in if id != nil { destination = .inbox } }
     .onReceive(NotificationCenter.default.publisher(for: .relaySearch)) { _ in
       destination = .agreements
       eventsPath = [.browse(nil)]

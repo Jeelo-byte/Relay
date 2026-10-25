@@ -36,6 +36,7 @@
 		F6EBC4BEFC213643ADFC9036 /* ChatSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B710E2D51FDAF95F423A29 /* ChatSearchView.swift */; };
 		F6C7502DE068ACA49D98B5A4 /* BridgeConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B7C43E54C3C1EA2B87E25B0 /* BridgeConnectView.swift */; };
 		DB3768B85CE31A150C22A7B2 /* MessageOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D617F1E5DC7DF76FD6039F2E /* MessageOnboardingView.swift */; };
+		AACC00112233445566778801 /* DevicePairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACC00112233445566778802 /* DevicePairingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +81,7 @@
 		F8E7A997B5D969E134813EF8 /* RelayUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayUITests.swift; sourceTree = "<group>"; };
 		7B7C43E54C3C1EA2B87E25B0 /* BridgeConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeConnectView.swift; sourceTree = "<group>"; };
 		D617F1E5DC7DF76FD6039F2E /* MessageOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageOnboardingView.swift; sourceTree = "<group>"; };
+		AACC00112233445566778802 /* DevicePairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicePairingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -116,6 +118,7 @@
 				8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */,
 				DE9BFFFB9416D2A77FA30364 /* MessagesHomeView.swift */,
 				563A7CF12A1A13FCB46097F8 /* Onboarding.swift */,
+				AACC00112233445566778802 /* DevicePairingView.swift */,
 				BFFCBC050CBCE1762B12CD5D /* PassphraseSettingsView.swift */,
 				CE21C650BCE4CC475561ACFF /* PeopleView.swift */,
 				0EBD94A81CAB1263757E4877 /* RecapsView.swift */,
@@ -289,6 +292,7 @@
 				36106F372C8FED63A9C7C24A /* MatrixConnectView.swift in Sources */,
 				E624B28C0B14F7D61F844DB4 /* MessagesHomeView.swift in Sources */,
 				E229B5737F21A1D87C0073EC /* Onboarding.swift in Sources */,
+				AACC00112233445566778801 /* DevicePairingView.swift in Sources */,
 				D8E913E526A6D37D9EEF2580 /* PassphraseSettingsView.swift in Sources */,
 				A920C5C124F4315597AE5E70 /* PeopleView.swift in Sources */,
 				DE7222E3823E5667E21FE692 /* RecapsView.swift in Sources */,
@@ -452,7 +456,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Relay sends the replies you review through Messages on this Mac.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Relay does not use the camera.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Relay scans a pairing code to securely connect this device to your Relay account.";
 				INFOPLIST_KEY_NSContactsUsageDescription = "Relay imports contact names, phone numbers, and email addresses to link profiles across your messaging apps on this device.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your private Relay agreements.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -501,7 +505,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Relay sends the replies you review through Messages on this Mac.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Relay does not use the camera.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Relay scans a pairing code to securely connect this device to your Relay account.";
 				INFOPLIST_KEY_NSContactsUsageDescription = "Relay imports contact names, phone numbers, and email addresses to link profiles across your messaging apps on this device.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your private Relay agreements.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
