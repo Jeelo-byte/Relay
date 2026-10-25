@@ -78,12 +78,12 @@ Deliver one complete, verified item, update this file with its evidence, and pus
 
 | Order | Deliverable | Status and completion gate |
 | --- | --- | --- |
-| 1 | WhatsApp sync, photo previews, message actions, and real-data-only startup | Implemented and regression verified; ready for the first GitHub checkpoint. See evidence below. A fresh visual inspection of the running Mac app remains open; this is separate from passing live read-only ingestion and simulator interactions. |
+| 1 | WhatsApp sync, photo previews, message actions, and real-data-only startup | Pushed as `05e9a10` to `codex/account-security` and draft PR #2. See evidence below. A fresh visual inspection of the running Mac app remains open; this is separate from passing live read-only ingestion and simulator interactions. |
 | 2 | Friendly guided connections | Pending. Implement the existing guided WhatsApp Figma flow in native startup and Settings. Save/resume progress, allow setup later, show actual pairing/expiry/reconnect states, search/select chats, and require a real incoming-message check. Remove manual infrastructure steps from the ordinary connection flow where the implementation supports it. Then verify each additional service one at a time. |
 | 3 | Hosting and reachability | Pending. Choose and document local Mac versus always-on relay hosting; separate website/API, encrypted storage, and bridge infrastructure. Provide trusted HTTPS access for phones and browsers, durable bridge sessions, backups, and actual reconnect/restart evidence. No hosting purchase or public deployment has been made. |
 | 4 | Live website interface | Pending. Implement authenticated live conversation lists, incoming updates, message search, real photo display, and confirmed sending with chat consent and lock/session cleanup. Verify against the same real WhatsApp account; saved source excerpts alone do not satisfy this. |
 | 5 | Complete website documentation | Initial WhatsApp setup guide built. Keep it current with linking, host requirements, privacy, chat controls, images, errors, reconnects, cross-device setup, and service-specific availability. Document every finished checkpoint as it ships. |
-| 6 | Final polish across platforms | Pending. Follow the existing Figma designs, add subtle page transitions and interaction feedback, respect Reduce Motion, and verify keyboard, VoiceOver, large text, dark mode, compact layouts, and empty/error states. |
+| 6 | Final polish across platforms | Initial web motion added: 160 ms page-entry transitions and 120 ms navigation feedback, disabled by Reduce Motion. Broader polish remains pending: follow the existing Figma designs and verify keyboard, VoiceOver, large text, dark mode, compact layouts, and empty/error states across platforms. |
 | 7 | Remaining security and sync work | Pending. Dedicated passphrase/recovery/deletion UI tests, actual data-key rotation, offline passphrase unlock, and field-level multi-device conflict handling. |
 | 8 | Remaining product features and evidence | Pending. Live attachments/recap galleries, synced person notes, real iMessage verification, reminder delivery, model evaluation/cloud mode, and the outstanding acceptance requirements in the build plan. |
 
@@ -135,3 +135,7 @@ Verification on October 25:
 | Mac package | `scripts/package-mac.sh artifacts/Relay.app` and strict signature verification passed. Log: `artifacts/whatsapp-checkpoint-mac-build.log`. Native screen inspection timed out after relaunch, so a fresh Mac photo-preview/right-click visual check is still unverified. |
 
 No message was sent to a real WhatsApp conversation during this checkpoint. Credentials, private chat data, and ignored verification artifacts are excluded from Git. Continue with the ordered roadmap above; designs alone do not mark the remaining items complete.
+
+### Web motion follow-up
+
+Added short page-entry transitions (160 ms, 4 px) to workspace destinations, sign-in, and the setup guide, plus 120 ms color feedback in navigation. Content refreshes do not restart the transition. The browser's Reduce Motion preference disables these animations and transitions. Production build passed (`artifacts/web-motion-build.log`); browser inspection confirmed `relay-page-enter` at `0.16s`, then `none` with Reduce Motion enabled. The compact guide measured 342 px of content at a 390 px viewport with 17 px body text and no horizontal overflow. Native page transitions and the broader accessibility/polish pass remain open.

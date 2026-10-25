@@ -518,3 +518,21 @@ aside input { border:0; margin-bottom:24px; font-size:14px; }
   .guide-intro { padding-top: 32px; }
   .guide-intro p { font-size: 17px; }
 }
+
+/* A short arrival cue on page changes; data refreshes keep their current position. */
+@keyframes relay-page-enter {
+  from { opacity: .4; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.workspace-main > :is(.recaps-workspace, .events-workspace, .split-workspace, .list),
+.guide-layout, .welcome {
+  animation: relay-page-enter 160ms ease-out;
+}
+.primary-navigation button, .mobile-navigation button, .settings-card {
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-main > :is(.recaps-workspace, .events-workspace, .split-workspace, .list),
+  .guide-layout, .welcome { animation: none; }
+  .primary-navigation button, .mobile-navigation button, .settings-card { transition: none; }
+}
