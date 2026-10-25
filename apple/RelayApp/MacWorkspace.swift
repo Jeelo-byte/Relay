@@ -577,4 +577,29 @@ struct MacPreferencesView: View {
     }.font(.system(size: 13)).foregroundStyle(RelayTheme.ink)
   }
 }
+
+/// Shared presentation for desktop setup sheets, matching the main workspace.
+struct MacSetupShell<Content: View>: View {
+  @Environment(\.dismiss) private var dismiss
+  let title: String
+  let subtitle: String
+  let symbol: String
+  @ViewBuilder var content: () -> Content
+  var body: some View {
+    VStack(spacing: 0) {
+      HStack(spacing: 16) {
+        Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(RelayTheme.accentText)
+          .frame(width: 52, height: 52).background(RelayTheme.selection, in: RoundedRectangle(cornerRadius: 14))
+        VStack(alignment: .leading, spacing: 6) {
+          Text(title).font(.system(size: 25, weight: .bold))
+          Text(subtitle).font(.system(size: 13)).foregroundStyle(RelayTheme.muted)
+        }
+        Spacer()
+        Button("Done") { dismiss() }.buttonStyle(.borderedProminent).controlSize(.large)
+      }.padding(26).background(RelayTheme.surface)
+      ScrollView { content().padding(26).frame(maxWidth: .infinity, alignment: .leading) }
+    }.font(.system(size: 13)).foregroundStyle(RelayTheme.ink).background(RelayTheme.background)
+      .frame(width: 880, height: 720)
+  }
+}
 #endif
