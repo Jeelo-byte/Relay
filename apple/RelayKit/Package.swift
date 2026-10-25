@@ -30,7 +30,7 @@ let package = Package(
   products: [.library(name: "RelayKit", targets: ["RelayKit"])],
   dependencies: dependencies,
   targets: [
-    .target(name: "RelayKit", dependencies: products, path: "Sources/RelayKit", resources: [.process("Resources")]),
+    .target(name: "RelayKit", dependencies: products, path: "Sources/RelayKit", resources: [.process("Resources/RelayAssets.xcassets"), .process("Resources/normalize.js"), .process("Resources/placeholder.txt"), .copy("Resources/MessageHost")]),
     .testTarget(name: "RelayKitTests", dependencies: ["RelayKit"], path: "Tests/RelayKitTests")
   ], swiftLanguageModes: [.v5]
 )

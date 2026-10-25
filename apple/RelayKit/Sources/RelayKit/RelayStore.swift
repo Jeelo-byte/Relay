@@ -28,6 +28,7 @@ import SwiftUI
   @Published public var matrixStatus = "Not Connected"
   @Published public private(set) var includeAllWhatsApp = false
   @Published public var setupActive = false
+  @Published public private(set) var setupServices: Set<MessagingService> = []
   @Published public private(set) var setupStep: SetupStep = .welcome
   @Published public var imessageStatus = "Not Connected"
   @Published public var imessageError: String?
@@ -85,6 +86,7 @@ import SwiftUI
       isDemo = (try local!.meta("demo")) == "true"
       started = (try local!.meta("started")) == "true"
       includeAllWhatsApp = (try local!.meta("whatsapp_all_chats")) == "true"
+      setupServices = Set((try local!.meta("setup_services") ?? "").split(separator: ",").compactMap { MessagingService(rawValue: String($0)) })
       setupStep = SetupStep(rawValue: Int(try local!.meta("setup_step") ?? "0") ?? 0) ?? .welcome
       if ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil { try removeSampleData() }
       if restoreSession, ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil,
@@ -121,6 +123,16 @@ import SwiftUI
   public func beginManual() {
     started = true
     try? local?.setMeta("started", value: "true")
+  }
+  public func selectSetupServices(_ services: Set<MessagingService>) {
+    setupServices.formUnion(services)
+    try? local?.setMeta("setup_services", value: setupServices.map(\.rawValue).sorted().joined(separator: ","))
+    matrixDiscoveredAt = nil
+  }
+  public func refreshBridgeChats(service: MessagingService) async {
+    selectSetupServices([service])
+    matrixDiscoveredAt = nil
+    await syncMatrix()
   }
   public func advanceSetup(_ step: SetupStep) {
     setupStep = step
@@ -718,8 +730,11 @@ extension RelayStore {
       let s = try JSONDecoder().decode(MatrixSession.self, from: data)
       let client = MatrixClient(session: s)
       if matrixDiscoveredAt == nil || Date().timeIntervalSince(matrixDiscoveredAt!) >= 15 {
-        let discovered = try await client.discover(joinWhatsAppInvites: includeAllWhatsApp)
+        let discovered = try await client.discover(joinWhatsAppInvites: includeAllWhatsApp, joining: setupServices.subtracting([.imessage]))
         guard !locked, try KeychainStore.read("matrix-session") == data else { return }
+        // Remove setup rooms cached by earlier versions before reading any timeline.
+        rooms.removeAll { client.managementRoomIDs.contains($0.id) }
+        messages.removeAll { client.managementRoomIDs.contains($0.room_id) }
         mergeDiscoveredMatrixRooms(discovered)
         matrixDiscoveredAt = Date()
       }

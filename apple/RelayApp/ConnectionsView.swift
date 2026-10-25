@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ConnectionsView: View {
   @EnvironmentObject var store: RelayStore
+  var availableServices: [MessagingService] = MessagingService.allCases
   @State private var selected: MessagingService?
   var body: some View {
     Group {
@@ -13,27 +14,23 @@ struct ConnectionsView: View {
       #endif
     }.sheet(item: $selected) { service in
       if service == .imessage { IMessageConnectView() }
+      else if service == .whatsapp {
+        GuidedWhatsAppSetupView(onClose: { selected = nil }, onMessages: { selected = nil })
+      } else if MessagingService.onboarding.contains(service) { BridgeConnectView(service: service) }
       else {
-        #if os(macOS)
-        MacSetupShell(title: service.name, subtitle: "Link your account, then choose the conversations Relay can include.", symbol: service.symbol) {
-          bridgeSetup(service)
-        }
-        #else
         NavigationStack {
-          ScrollView { bridgeSetup(service).padding(24).frame(maxWidth: 560) }
-            .navigationTitle(service.name).toolbar {
-              ToolbarItem(placement: .confirmationAction) { Button("Done") { selected = nil } }
-            }
+          ScrollView { bridgeSetup(service).padding(24) }.navigationTitle(service.name)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { selected = nil } } }
         }
-        #endif
       }
     }
   }
   private var services: some View {
     Group {
-      ForEach(MessagingService.allCases) { service in
+      ForEach(availableServices) { service in
         Button {
-          if service == .whatsapp { store.setupActive = true } else { selected = service }
+          store.selectSetupServices([service])
+          selected = service
         } label: {
           HStack(spacing: 12) {
             Image(systemName: service.symbol).frame(width: 24).foregroundStyle(RelayTheme.primary)

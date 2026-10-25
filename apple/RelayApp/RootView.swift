@@ -44,7 +44,7 @@ struct RootView: View {
       if store.locked {
         UnlockView()
       } else if !store.started || store.setupActive {
-        GuidedWhatsAppSetupView(onClose: { store.leaveSetup() }, onMessages: { store.leaveSetup(); destination = .inbox })
+        MessageOnboardingView(onClose: { store.leaveSetup() }, onMessages: { store.leaveSetup(); destination = .inbox })
       } else if compact {
         compactView
       } else {

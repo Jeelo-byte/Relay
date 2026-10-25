@@ -114,7 +114,7 @@ struct ConnectionSettingsView: View {
       SettingsCard("Message server") {
         Text("Connect only the apps and chats you choose. You can pause a chat at any time.")
         LabeledContent("Message Server", value: store.matrixStatus)
-        Button("Set Up WhatsApp") { store.setupActive = true }
+        Button("Set Up Messaging Apps") { store.setupActive = true }
         Button("Connect Messages or Choose Chats") { connect = true }
       }
       SettingsCard("Your apps") { ConnectionsView() }

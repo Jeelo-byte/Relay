@@ -45,3 +45,5 @@ Native and web surfaces for the five destinations are in the tree, including rec
 After Full Disk Access is granted, Relay can read new text from conversations you choose in Messages. Open **Messages → Choose Chats → iMessage**. New messages arrive after enabling a chat; **Import Recent Messages** optionally brings in the latest 100 messages per selected chat. Reviewed text replies send through Messages after Automation access is granted. Details and limits are in [docs/IMESSAGE.md](docs/IMESSAGE.md).
 
 Account recovery, passphrase changes, and passphrase-confirmed account deletion are available in the native app. See [the current tracker](context/What%20works%20in%20Relay.md) for verified behavior and remaining work.
+
+For guided Instagram, Google Messages, Discord, iMessage, and WhatsApp connection setup, see [Messaging onboarding](docs/MESSAGING-SETUP.md).

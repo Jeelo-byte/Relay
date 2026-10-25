@@ -292,6 +292,7 @@ struct GuidedWhatsAppSetupView: View {
   @State private var issue: String?
   @State private var management: String?
   @State private var requestedAt: Int64?
+  @State private var serverClockOffset: Int64 = 0
   @State private var pairing: PairingUpdate?
   @State private var imageData: Data?
   @State private var imageEvent: String?
@@ -449,7 +450,7 @@ struct GuidedWhatsAppSetupView: View {
   @ViewBuilder private var actionButtons: some View {
     switch step {
     case .welcome:
-      Button("Set Up WhatsApp") { store.setupActive = true; store.advanceSetup(.link) }.buttonStyle(.borderedProminent)
+      Button("Set Up WhatsApp") { store.advanceSetup(.link) }.buttonStyle(.borderedProminent)
       Button("Use Relay on This Device", action: onClose).buttonStyle(.bordered)
     case .link:
       if pairing?.state == .linked {
@@ -482,8 +483,8 @@ struct GuidedWhatsAppSetupView: View {
       let room = try await client.whatsappManagementRoom()
       guard !Task.isCancelled, !store.locked, try store.messageSession()?.access_token == session.access_token else { return }
       management = room
-      requestedAt = Int64(Date().timeIntervalSince1970 * 1000)
-      try await client.requestWhatsAppPairing(room: room, command: command)
+      requestedAt = try await client.requestWhatsAppPairing(room: room, command: command)
+      serverClockOffset = (requestedAt ?? Clock.ms) - Clock.ms
     } catch { issue = error.localizedDescription }
   }
   private func refreshPairing() async {
@@ -491,7 +492,7 @@ struct GuidedWhatsAppSetupView: View {
     do {
       guard let session = try store.messageSession() else { imageData = nil; return }
       let client = MatrixClient(session: session)
-      let result = try await client.whatsappPairing(room: management, after: requestedAt)
+      let result = try await client.whatsappPairing(room: management, after: requestedAt, now: Clock.ms + serverClockOffset)
       guard !Task.isCancelled, !store.locked, try store.messageSession()?.access_token == session.access_token else { return }
       pairing = result
       if result.state == .code, let url = result.imageURL, result.eventID != imageEvent {

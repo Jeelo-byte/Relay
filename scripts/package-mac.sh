@@ -16,8 +16,8 @@ done
 import plistlib, sys
 with open(sys.argv[1], 'wb') as f:
     plistlib.dump({'CFBundleExecutable':'Relay', 'CFBundleIdentifier':'app.relay.agreements',
-      'CFBundleName':'Relay', 'CFBundleIconFile':'Relay', 'CFBundlePackageType':'APPL', 'CFBundleShortVersionString':'0.2.0',
-      'CFBundleVersion':'2', 'LSMinimumSystemVersion':'14.0',
+      'CFBundleName':'Relay', 'CFBundleIconFile':'Relay', 'CFBundlePackageType':'APPL', 'CFBundleShortVersionString':'0.4.0',
+      'CFBundleVersion':'7', 'LSMinimumSystemVersion':'14.0',
       'NSHighResolutionCapable':True, 'NSFaceIDUsageDescription':'Unlock your private Relay agreements.',
       'NSContactsUsageDescription':'Relay imports contact names, phone numbers, and email addresses to link profiles across your messaging apps on this device.',
       'NSAppleEventsUsageDescription':'Relay sends the replies you review through Messages on this Mac.'}, f)

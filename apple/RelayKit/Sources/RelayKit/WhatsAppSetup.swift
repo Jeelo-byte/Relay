@@ -51,27 +51,72 @@ public struct PairingUpdate: Equatable {
 
 extension MatrixClient {
   public func whatsappManagementRoom() async throws -> String {
-    let filter: [String: Any] = ["room": ["timeline": ["limit": 0], "state": ["types": ["m.room.member"]]]]
+    try await managementRoom(service: .whatsapp)
+  }
+  public func managementRoom(service: MessagingService) async throws -> String {
+    guard service != .imessage else { throw VaultError.invalidEnvelope }
+    let filter: [String: Any] = ["room": ["timeline": ["limit": 0], "state": ["types": ["m.room.member", "m.bridge", "uk.half-shot.bridge", "m.room.encryption"]]]]
     let sync = try await Self.request(server: session.server, path: "sync?timeout=0&filter=\(Self.query(filter))", token: session.access_token)
     let joined = (sync["rooms"] as? [String: Any])?["join"] as? [String: [String: Any]] ?? [:]
     if let existing = joined.first(where: { _, room in
-      let members = Self.events(room, key: "state").filter {
-        $0["type"] as? String == "m.room.member" && ($0["content"] as? [String: Any])?["membership"] as? String == "join"
-      }
-      return members.count == 2 && members.contains { $0["state_key"] as? String == MessagingService.whatsapp.bot }
+      Self.isManagementRoom(Self.events(room, key: "state"), service: service, user: session.user_id)
     }) { return existing.key }
     let result = try await Self.request(server: session.server, path: "createRoom", token: session.access_token, method: "POST", body: [
-      "preset": "private_chat", "invite": [MessagingService.whatsapp.bot], "is_direct": true, "name": "Relay · WhatsApp setup"
+      "preset": "private_chat", "invite": [service.bot], "is_direct": true, "name": "Relay · \(service.name) setup"
     ])
     guard let id = result["room_id"] as? String else { throw VaultError.invalidEnvelope }
     return id
   }
-  public func requestWhatsAppPairing(room: String, command: String = "login qr") async throws {
+  @discardableResult public func requestWhatsAppPairing(room: String, command: String = "login qr") async throws -> Int64 {
     guard ["login qr", "ping"].contains(command) else { throw VaultError.invalidEnvelope }
-    _ = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/send/m.room.message/\(UUID().uuidString)", token: session.access_token, method: "PUT", body: ["msgtype": "m.text", "body": command])
+    return try await sendSetupMessage(room: room, input: command)
   }
-  public func whatsappPairing(room: String, after: Int64) async throws -> PairingUpdate {
+  /// Account responses are read only from the chosen service bot in its private room.
+  public func bridgeResponses(room: String, service: MessagingService, after: Int64) async throws -> [[String: Any]] {
+    let result = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/messages?dir=b&limit=50", token: session.access_token)
+    return (result["chunk"] as? [[String: Any]] ?? []).filter {
+      $0["sender"] as? String == service.bot && ($0["origin_server_ts"] as? Int64 ?? 0) >= after
+    }
+  }
+  public func waitForManagementBot(room: String, service: MessagingService) async throws {
+    for _ in 0..<10 {
+      let state = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/state", token: session.access_token)
+      if Self.isManagementRoom(state["chunk"] as? [[String: Any]] ?? [], service: service, user: session.user_id) { return }
+      try await Task.sleep(for: .seconds(1))
+    }
+    throw APIError(status: 0, code: "bridge_unavailable", message: "The bridge has not joined its setup chat. Start the selected bridge on your message server, then retry.", current: nil)
+  }
+  @discardableResult public func sendBridgeInput(room: String, service: MessagingService, input: String) async throws -> Int64 {
+    guard service != .imessage, !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      input.utf8.count <= 65_536 else { throw VaultError.invalidEnvelope }
+    // Verify the destination before transmitting account secrets. Never use a portal chat.
+    let members = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/state", token: session.access_token)
+    guard Self.isManagementRoom(members["chunk"] as? [[String: Any]] ?? [], service: service, user: session.user_id) else {
+      throw APIError(status: 0, code: "invalid_setup_room", message: "Open a private setup chat with the correct bridge before continuing.", current: nil)
+    }
+    return try await sendSetupMessage(room: room, input: input)
+  }
+  private func sendSetupMessage(room: String, input: String) async throws -> Int64 {
+    let sent = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/send/m.room.message/\(UUID().uuidString)", token: session.access_token, method: "PUT", body: ["msgtype": "m.text", "body": input])
+    guard let id = sent["event_id"] as? String else { throw VaultError.invalidEnvelope }
+    let event = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/event/\(Self.segment(id))", token: session.access_token)
+    // Pairing boundaries use server time: Docker's clock may differ from the Mac.
+    guard let timestamp = event["origin_server_ts"] as? Int64 else { throw VaultError.invalidEnvelope }
+    return timestamp
+  }
+  static func isManagementRoom(_ events: [[String: Any]], service: MessagingService, user: String) -> Bool {
+    guard !events.contains(where: { ["m.bridge", "uk.half-shot.bridge", "m.room.encryption"].contains($0["type"] as? String ?? "") }) else { return false }
+    let expected = Set([service.bot, user])
+    guard events.filter({ $0["type"] as? String == "m.room.member" }).allSatisfy({ event in
+      let membership = (event["content"] as? [String: Any])?["membership"] as? String ?? ""
+      return !["join", "invite", "knock"].contains(membership) || expected.contains(event["state_key"] as? String ?? "")
+    }) else { return false }
+    let joined = events.filter { $0["type"] as? String == "m.room.member" && ($0["content"] as? [String: Any])?["membership"] as? String == "join" }
+    let ids = Set(joined.compactMap { $0["state_key"] as? String })
+    return ids == expected
+  }
+  public func whatsappPairing(room: String, after: Int64, now: Int64 = Clock.ms) async throws -> PairingUpdate {
     let result = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/messages?dir=b&limit=30", token: session.access_token)
-    return PairingUpdate.parse(result["chunk"] as? [[String: Any]] ?? [], bot: MessagingService.whatsapp.bot, after: after, now: Int64(Date().timeIntervalSince1970 * 1000))
+    return PairingUpdate.parse(result["chunk"] as? [[String: Any]] ?? [], bot: MessagingService.whatsapp.bot, after: after, now: now)
   }
 }

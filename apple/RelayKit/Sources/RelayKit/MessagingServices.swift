@@ -38,21 +38,39 @@ public enum MessagingService: String, Codable, CaseIterable, Identifiable, Senda
   }
   public var setupHint: String {
     switch self {
-    case .imessage: "Read chosen conversations from Messages on this Mac. Full Disk Access is required."
+    case .imessage: "Read and reply to chosen conversations through Messages on this Mac. Full Disk Access and Automation access are required."
     case .whatsapp: "Link a device by scanning its QR code with WhatsApp."
     case .telegram: "Add your Telegram API ID/hash, then sign in with your phone and login code."
     case .discord: "Sign in through the Discord bridge’s account-linking flow."
     case .signal: "Link Signal as another device using its QR code."
     case .slack: "Use the Slack bridge’s workspace login flow for each workspace."
-    case .gmessages: "Pair your Android phone using Google Messages device pairing."
+    case .gmessages: "Sign in with your Google account, then approve the matching emoji in Google Messages on your Android phone. Keep your phone online."
     case .messenger: "Use the Messenger bridge’s supported login flow on your Mac."
     case .instagram: "Use the separate Instagram bridge’s supported login flow on your Mac."
+    }
+  }
+
+  public static let onboarding: [MessagingService] = [.whatsapp, .instagram, .gmessages, .discord, .imessage]
+  public var loginCommand: String {
+    switch self {
+    case .discord: "login-qr"
+    case .gmessages: "login google"
+    case .instagram: "login instagram"
+    default: "login qr"
+    }
+  }
+  public var pairingInstructions: String {
+    switch self {
+    case .discord: "Open Discord on your phone, scan the code, and approve the login. If Discord requests a CAPTCHA, use the bridge documentation for another login method."
+    case .gmessages: "In a private browser window, sign in to accounts.google.com/AccountChooser?continue=https://messages.google.com/web/config. Copy the /web/config request as cURL from developer tools and submit it below when the bridge asks. Then approve the matching emoji on your phone."
+    case .instagram: "Sign in to instagram.com in a private browser window. In developer tools → Network, copy an authenticated request as cURL. Submit it below when the bridge asks for cookies. Complete any account verification in Instagram."
+    default: setupHint
     }
   }
   public var documentationURL: URL {
     URL(
       string:
-        "https://docs.mau.fi/bridges/go/\(self == .messenger ? "meta":rawValue)/authentication.html"
+        "https://docs.mau.fi/bridges/go/\((self == .messenger || self == .instagram) ? "meta":rawValue)/authentication.html"
     )!
   }
   public static func identify(protocolID: String, bot: String = "", sender: String = "")

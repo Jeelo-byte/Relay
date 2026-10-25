@@ -31,3 +31,6 @@ __pycache__/
 /outputs/
 /work/
 /Relay-*.png
+
+# Standalone onboarding host state (tokens, account sessions and chat databases).
+infra/matrix/onboarding/

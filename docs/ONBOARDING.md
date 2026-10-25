@@ -1,3 +1,9 @@
+# Multi-app onboarding
+
+The app now starts with a service chooser and guided message-host setup. See
+[Messaging setup](MESSAGING-SETUP.md) for all supported login flows and validation.
+The WhatsApp-specific flow below remains available from the chooser.
+
 # Guided onboarding
 
 Requested October 25, 2026. Use the Apple design skill and Figma generation/use skills. Existing product screens remain the baseline; create a separate setup flow in the existing Relay Figma file.

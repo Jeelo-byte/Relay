@@ -7,6 +7,7 @@ public struct MatrixSession: Codable, Sendable {
 }
 public final class MatrixClient {
   public let session: MatrixSession
+  public private(set) var managementRoomIDs: Set<String> = []
   public init(session: MatrixSession) { self.session = session }
   static func imageRequest(session: MatrixSession, mxc: String) throws -> URLRequest {
     guard let media = URLComponents(string: mxc), media.scheme == "mxc",
@@ -77,7 +78,8 @@ public final class MatrixClient {
     if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
     if let body { request.httpBody = try JSONSerialization.data(withJSONObject: body) }
     let (data, response) = try await URLSession.shared.data(for: request)
-    let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+    let decoded = try? JSONSerialization.jsonObject(with: data)
+    let obj = decoded as? [String: Any] ?? ["chunk": decoded as? [[String: Any]] ?? []]
     guard let status = (response as? HTTPURLResponse)?.statusCode, (200..<300).contains(status)
     else {
       throw APIError(
@@ -112,7 +114,7 @@ public final class MatrixClient {
   static func events(_ object: [String: Any], key: String) -> [[String: Any]] {
     (object[key] as? [String: Any])?["events"] as? [[String: Any]] ?? []
   }
-  public func discover(joinWhatsAppInvites: Bool = false) async throws -> [ChatRoom] {
+  public func discover(joinWhatsAppInvites: Bool = false, joining services: Set<MessagingService> = []) async throws -> [ChatRoom] {
     let filter: [String: Any] = [
       "room": [
         "timeline": ["limit": 0],
@@ -126,18 +128,19 @@ public final class MatrixClient {
     let sync = try await Self.request(
       server: session.server, path: "sync?timeout=0&filter=\(Self.query(filter))",
       token: session.access_token)
-    if joinWhatsAppInvites {
+    let trustedServices = services.union(joinWhatsAppInvites ? [.whatsapp] : [])
+    if !trustedServices.isEmpty {
       let invited = (sync["rooms"] as? [String: Any])?["invite"] as? [String: [String: Any]] ?? [:]
       var joinedInvite = false
       // Joining large accounts is rate limited by Synapse. Import gradually without
       // blocking already connected chats or repeatedly presenting alerts.
       for (id, room) in invited.sorted(by: { $0.key < $1.key }) {
-        // Only accept invitations from our configured WhatsApp bridge, never arbitrary rooms.
-        guard Self.events(room, key: "invite_state").contains(where: {
-          $0["type"] as? String == "m.room.member"
-            && $0["state_key"] as? String == session.user_id
-            && $0["sender"] as? String == MessagingService.whatsapp.bot
-            && ($0["content"] as? [String: Any])?["membership"] as? String == "invite"
+        // Accept only the selected bridges on this homeserver; joining never opts a chat into ingestion.
+        guard Self.events(room, key: "invite_state").contains(where: { event in
+          event["type"] as? String == "m.room.member"
+            && event["state_key"] as? String == session.user_id
+            && trustedServices.contains(where: { service in event["sender"] as? String == service.bot })
+            && (event["content"] as? [String: Any])?["membership"] as? String == "invite"
         }) else { continue }
         do {
           _ = try await Self.request(server: session.server, path: "join/\(Self.segment(id))",
@@ -149,8 +152,12 @@ public final class MatrixClient {
       if joinedInvite { return try await discover() }
     }
     let joined = (sync["rooms"] as? [String: Any])?["join"] as? [String: [String: Any]] ?? [:]
-    return joined.map { id, room in
+    managementRoomIDs = Set(joined.compactMap { id, room in
+      MessagingService.allCases.contains(where: { Self.isManagementRoom(Self.events(room, key: "state"), service: $0, user: session.user_id) }) ? id : nil
+    })
+    return joined.compactMap { id, room -> ChatRoom? in
       let events = Self.events(room, key: "state")
+      if managementRoomIDs.contains(id) { return nil }
       let name = events.first { $0["type"] as? String == "m.room.name" }.flatMap {
         ($0["content"] as? [String: Any])?["name"] as? String
       }

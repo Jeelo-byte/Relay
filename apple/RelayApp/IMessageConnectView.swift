@@ -86,6 +86,13 @@ struct IMessageConnectView: View {
                 .font(.system(size: 11)).foregroundStyle(RelayTheme.muted)
             }
           }
+          RelayPanel {
+            VStack(alignment: .leading, spacing: 12) {
+              Label("Sending replies", systemImage: "paperplane").font(.headline)
+              Text("In Relay, open an included chat, type a reply, choose Review Send, then Send Message. Allow Relay to control Messages when macOS asks. Check delivery in Apple Messages.").font(.caption).foregroundStyle(RelayTheme.muted)
+              Button("Automation Settings") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!) }
+            }
+          }
           MacContactNamesCard()
         }.frame(width: 260)
         RelayPanel {
