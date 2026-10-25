@@ -2,7 +2,7 @@
 
 Updated October 25, 2026. The current detailed tracker is [What works in Relay](../context/What%20works%20in%20Relay.md). It separates passing evidence from implemented but unverified work.
 
-Current continuation: `codex/account-security`, based on `main` at `1cede3a`. The final visual design implementation is included in baseline `5125b33`.
+Current checkpoint: `main` at `62f2cdc`. GitHub Actions run `40180451095` passed the web job and `swift test`. The account-security work merged as `3cceeaa`. The final visual design implementation from `5125b33` remains in that history.
 
 Verified in the latest continuation:
 
@@ -12,4 +12,6 @@ Verified in the latest continuation:
 - Web production build passed. The Neon audit found no seeded plaintext markers in 19 blob rows.
 - Synapse and Element are healthy. Seven local bridge containers are running; this does not establish account linking or real third-party traffic.
 
-Still open: dedicated security UI flows, physical-device signing, live account linking and cross-device demo rehearsal, complete web Matrix conversations/sending, iMessage transport/sending, real media handling, synced person notes, actual data-key rotation, offline unlock, field-level sync merging, and the remaining model/provider/accessibility work. See the context tracker for limitations and test artifact names.
+On `main` and not yet proven on a real device or network: Mac iMessage send, contact import, and profile linking; local website Matrix chats; WhatsApp’s four-step setup; offline unlock after an online sign-in; and localhost host scripts (`scripts/start-host.sh`, the loopback gateway, and encrypted backup). A real iMessage was not sent.
+
+Still open: Full Disk Access and Automation before a real iMessage read or send, Tailscale HTTPS, Figma onboarding for every messaging service, data-key rotation, field-level multi-device conflict merge, dedicated security UI flows, cross-device demo rehearsal, real media handling, synced person notes, and the remaining model/provider/accessibility work. The Mac Figma workspace ([PR #3](https://github.com/Jeelo-byte/Relay/pull/3)) and the overlapping iMessage branch ([PR #4](https://github.com/Jeelo-byte/Relay/pull/4)) conflict with main and are not merged. See the context tracker for limitations and test artifact names.
