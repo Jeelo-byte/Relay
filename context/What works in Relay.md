@@ -69,9 +69,13 @@ Counts of product areas on main. Source: tests, `docs/FINAL-DESIGN.md`, and GitH
 
 ## Next work
 
-1. Verify recovery, passphrase, and deletion screens end to end; data-key rotation and offline unlock remain open.
-2. Add dedicated security-screen UI flows. All five current general UI flows pass on both simulators.
+1. Add dedicated recovery, passphrase, and deletion UI flows. All five current general UI flows pass on both simulators.
+2. Implement actual data-key rotation and offline passphrase unlock.
 3. Complete web live conversations/sending, media, and remaining final-design behavior.
 4. Keep account linking, physical signing, and real service traffic explicitly separate from fixture/sample evidence.
 
-`docs/FEATURES.md` and `docs/STATUS.md` lag the code. They still mark recurrence, chat search, device revocation, and CI as open. Those four now have tests or a green Actions run. `docs/FINAL-DESIGN.md` is the closer progress note, and it still does not claim the product is finished.
+## Checkpoint and review
+
+Implementation checkpoint: `4a7d554` on `codex/account-security`, pushed to GitHub with [draft PR #2](https://github.com/Jeelo-byte/Relay/pull/2). The web CI job has passed; the Apple CI job is still running at this update. Local live tests remain separate from CI, which skips external-service opt-ins.
+
+This tracker is the current evidence summary. `docs/STATUS.md` now points here; historical verification documents describe their own earlier checkpoints. The product is not yet complete.
