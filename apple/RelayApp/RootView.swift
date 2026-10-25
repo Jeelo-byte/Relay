@@ -48,7 +48,11 @@ struct RootView: View {
       } else if compact {
         compactView
       } else {
+        #if os(macOS)
+        MacWorkspaceView(onNew: newAgreement, onEdit: { editor = $0 })
+        #else
         wideView
+        #endif
       }
     }
     .background(RelayTheme.background)

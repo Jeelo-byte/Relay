@@ -158,38 +158,86 @@ public enum IMessageSendError: LocalizedError {
 }
 
 enum IMessageAutomation {
-  // The script is passed over stdin; message text never becomes a shell command or process argument.
-  static func literal(_ text: String) -> String {
-    "\"" + text.replacingOccurrences(of: "\\", with: "\\\\")
-      .replacingOccurrences(of: "\"", with: "\\\"")
-      .replacingOccurrences(of: "\r", with: "\\r")
-      .replacingOccurrences(of: "\n", with: "\\n")
-      .replacingOccurrences(of: "\t", with: "\\t") + "\""
+  /// Chat id and message text are subroutine parameters. They are never written into this source.
+  static let handler = """
+    on relaySend(chatGUID, messageBody)
+      with timeout of 30 seconds
+        tell application id "com.apple.MobileSMS"
+          set matches to every chat whose id is chatGUID
+          if (count of matches) is not 1 then error "Conversation unavailable" number -1728
+          set targetChat to item 1 of matches
+          if service type of account of targetChat is not iMessage then error "Not iMessage" number -2701
+          send messageBody to targetChat
+        end tell
+      end timeout
+      return "submitted"
+    end relaySend
+    """
+
+  static func invocation(arguments: [String]) -> NSAppleEventDescriptor {
+    let event = NSAppleEventDescriptor(
+      eventClass: AEEventClass(four("ascr")), eventID: AEEventID(four("psbr")),
+      targetDescriptor: nil, returnID: AEReturnID(kAutoGenerateReturnID),
+      transactionID: AETransactionID(kAnyTransactionID))
+    event.setParam(NSAppleEventDescriptor(string: "relaysend"), forKeyword: AEKeyword(four("snam")))
+    let list = NSAppleEventDescriptor.list()
+    for (index, value) in arguments.enumerated() {
+      list.insert(NSAppleEventDescriptor(string: value), at: index + 1)
+    }
+    event.setParam(list, forKeyword: AEKeyword(keyDirectObject))
+    return event
   }
+
+  /// Proves a caller-supplied string comes back unchanged and is not treated as script source.
+  static func echoedParameter(_ text: String) throws -> String {
+    let source = """
+      on relaySend(chatGUID, messageBody)
+        return messageBody
+      end relaySend
+      """
+    guard let script = NSAppleScript(source: source) else {
+      throw IMessageSendError.automation("The Messages connection could not be prepared.")
+    }
+    var error: NSDictionary?
+    guard script.compileAndReturnError(&error) else {
+      throw IMessageSendError.automation(appleScriptMessage(error))
+    }
+    let result = script.executeAppleEvent(invocation(arguments: ["iMessage;-;parameter-check", text]), error: &error)
+    if error != nil { throw IMessageSendError.automation(appleScriptMessage(error)) }
+    return result.stringValue ?? ""
+  }
+
   static func send(target: String, text: String) async throws {
-    try await Task.detached {
-      let process = Process()
-      process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-      process.arguments = ["-"]
-      let input = Pipe(), output = Pipe()
-      process.standardInput = input; process.standardError = output
-      process.standardOutput = FileHandle.nullDevice
-      try process.run()
-      let script = """
-        with timeout of 30 seconds
-          tell application "Messages"
-            send \(literal(text)) to chat id \(literal(target))
-          end tell
-        end timeout
-        """
-      try input.fileHandleForWriting.write(contentsOf: Data(script.utf8))
-      try input.fileHandleForWriting.close()
-      let error = output.fileHandleForReading.readDataToEndOfFile()
-      process.waitUntilExit()
-      guard process.terminationStatus == 0 else {
-        throw IMessageSendError.automation(String(data: error, encoding: .utf8) ?? "Automation failed.")
+    guard target.hasPrefix("iMessage;"), !target.contains("\0"),
+      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !text.contains("\0"),
+      text.utf8.count <= 16_000 else { throw IMessageSendError.invalidChat }
+    try await MainActor.run {
+      guard let script = NSAppleScript(source: handler) else {
+        throw IMessageSendError.automation("The Messages connection could not be prepared.")
       }
-    }.value
+      var error: NSDictionary?
+      guard script.compileAndReturnError(&error) else {
+        throw IMessageSendError.automation(appleScriptMessage(error))
+      }
+      _ = script.executeAppleEvent(invocation(arguments: [target, text]), error: &error)
+      guard error == nil else { throw IMessageSendError.automation(appleScriptMessage(error)) }
+    }
+  }
+
+  private static func four(_ value: String) -> UInt32 {
+    value.utf8.reduce(0) { ($0 << 8) | UInt32($1) }
+  }
+
+  private static func appleScriptMessage(_ error: NSDictionary?) -> String {
+    let number = (error?[NSAppleScript.errorNumber] as? NSNumber)?.intValue
+    switch number {
+    case -1743, -1744:
+      return "Allow Relay to control Messages in System Settings → Privacy & Security → Automation. Check Send Status does not send this draft again."
+    case -1728, -2701, -600:
+      return "Open Messages and check that this iMessage conversation is available and signed in."
+    default:
+      return (error?[NSAppleScript.errorMessage] as? String) ?? "Automation failed."
+    }
   }
 }
 #endif
