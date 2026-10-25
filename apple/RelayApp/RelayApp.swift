@@ -20,7 +20,14 @@ import Contacts
         .onReceive(NotificationCenter.default.publisher(for: .CNContactStoreDidChange)) { _ in
           Task { await store.refreshContactNames() }
         }
-        .onChange(of: store.locked) { _, locked in if !locked { Task { await store.refreshContactNames() } } }
+        .onChange(of: store.locked) { _, locked in if !locked { Task { await store.refreshContactNames(); await store.syncIMessages() } } }
+        .task {
+          // Refresh chats as well as messages, independently of account/network sync.
+          while !Task.isCancelled {
+            await store.syncIMessages()
+            do { try await Task.sleep(for: .seconds(3)) } catch { break }
+          }
+        }
         #endif
         .onChange(of: store.agreements) { _, values in
           if !store.locked { Task { await reminders.refresh(agreements: values) } }
@@ -72,7 +79,7 @@ import Contacts
         .task {
           while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(30))
-            if !Task.isCancelled && scenePhase == .active { await store.sync(); await syncIMessages() }
+            if !Task.isCancelled && scenePhase == .active { await store.sync() }
           }
         }
         #if os(macOS)

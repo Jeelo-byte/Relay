@@ -44,7 +44,7 @@ public struct IMessageClient: Sendable {
           room.participant_handles = Array(Set(participants[id] ?? [])).sorted()
           room.native_display_name = title
           room.service = .imessage
-          room.participants = try String.fetchAll(db, sql: "SELECT h.id FROM handle h JOIN chat_handle_join j ON j.handle_id=h.ROWID WHERE j.chat_id=?", arguments: [id])
+          room.participants = (participants[id] ?? [])
             .map { Party(id: Self.prefix + $0, name: $0, network: .imessage) }
           room.member_count = (row["members"] as Int? ?? 1) + 1
           room.backfill_cursor = String(row["latest"] as Int64? ?? 0)
@@ -64,9 +64,18 @@ public struct IMessageClient: Sendable {
     guard let id = chatID(room) else { throw IMessageSendError.invalidChat }
     return try read { db in
       guard let guid = try String.fetchOne(db, sql: "SELECT guid FROM chat WHERE ROWID=? AND service_name='iMessage'", arguments: [id]),
-        guid.hasPrefix("iMessage;"), !guid.contains("\0") else { throw IMessageSendError.invalidChat }
+        Self.isSupportedSendTarget(guid) else { throw IMessageSendError.invalidChat }
       return guid
     }
+  }
+
+  /// Messages also uses unified `any` chat GUIDs. The database service and the
+  /// Messages account are checked separately; never rewrite a GUID or guess a recipient.
+  static func isSupportedSendTarget(_ guid: String) -> Bool {
+    let parts = guid.split(separator: ";", maxSplits: 2, omittingEmptySubsequences: false)
+    return !guid.contains("\0") && parts.count == 3
+      && (parts[0] == "iMessage" || parts[0] == "any")
+      && (parts[1] == "+" || parts[1] == "-") && !parts[2].isEmpty
   }
 
   public func outgoingMessage(room: String, after: Int64, text: String) throws -> ChatMessage? {
@@ -162,7 +171,7 @@ public enum IMessageSendError: LocalizedError {
   case invalidChat, automation(String), unconfirmed
   public var errorDescription: String? {
     switch self {
-    case .invalidChat: "This iMessage conversation is unavailable. Refresh chats and choose it again."
+    case .invalidChat: "This conversation is no longer available in Messages. Relay refreshes chats automatically; open Messages to check this conversation."
     case .automation(let details): "Messages could not send. Allow Relay in System Settings → Privacy & Security → Automation → Messages. \(details)"
     case .unconfirmed: "Messages has not confirmed this send. Check the conversation in Messages. Check Send Status will look again without resending; discard the draft before intentionally starting another send."
     }
@@ -220,7 +229,7 @@ enum IMessageAutomation {
   }
 
   static func send(target: String, text: String) async throws {
-    guard target.hasPrefix("iMessage;"), !target.contains("\0"),
+    guard IMessageClient.isSupportedSendTarget(target),
       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !text.contains("\0"),
       text.utf8.count <= 16_000 else { throw IMessageSendError.invalidChat }
     try await MainActor.run {

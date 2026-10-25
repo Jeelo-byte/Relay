@@ -69,6 +69,11 @@ struct ConversationView: View {
       .onAppear {
         if let pending = store.outgoing.last(where: { $0.room_id == roomID && $0.state != "sent" }) { draft = pending.body; transaction = pending.id }
       }
+      #if os(macOS)
+      .task(id: roomID) {
+        if roomID.hasPrefix("imessage:") { await store.syncIMessages() }
+      }
+      #endif
       .task(id: ReplyInput(messages: store.messages.filter { $0.room_id == roomID }, rooms: store.rooms, ready: model.ready, enabled: store.automaticAIEnabled, idle: !store.processing && !store.generatingRecap)) {
         store.clearReplySuggestions(room: roomID)
         // Suggestions follow the live conversation, independently of recap timing.

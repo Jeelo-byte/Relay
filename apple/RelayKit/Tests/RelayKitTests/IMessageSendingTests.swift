@@ -120,5 +120,87 @@ final class IMessageSendingTests: XCTestCase {
     XCTAssertEqual(try client.outgoingMessage(room: "imessage:1", after: 1, text: "Reply")?.event_id, "imessage:confirmed-send")
     XCTAssertNil(try client.outgoingMessage(room: "imessage:2", after: 1, text: "Reply"))
   }
+
+  @MainActor func testUnifiedChatGUIDAndFreshTargetAreUsedWithoutChangingRecipient() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let (client, db, local) = try fixture(directory)
+    let store = RelayStore(localStore: local, restoreSession: false)
+    store.imessageClient = client
+    store.rooms = try client.discover(); store.setOptIn("imessage:1", true)
+    // Messages may switch an existing chat to its unified GUID after discovery.
+    try await db.write { db in
+      try db.execute(sql: "UPDATE chat SET guid='any;-;chosen@example.com' WHERE ROWID=1")
+      try db.execute(sql: "UPDATE chat SET guid='any;+;group-fixture' WHERE ROWID=2")
+      try db.execute(sql: "UPDATE chat SET guid='any;-;sms' WHERE ROWID=3")
+    }
+    store.imessageSend = { target, text in
+      XCTAssertEqual(target, "any;-;chosen@example.com")
+      try self.acknowledge(db, text: text)
+    }
+    let sent = await store.sendMessage("Unified reply", room: "imessage:1", transactionID: UUID())
+    XCTAssertTrue(sent)
+    XCTAssertEqual(try client.sendTarget(room: "imessage:2"), "any;+;group-fixture")
+    XCTAssertThrowsError(try client.sendTarget(room: "imessage:3"), "A unified GUID must not bypass the iMessage service check")
+    for invalid in ["SMS;-;recipient", "any;-;", "any;recipient", "any;?;recipient", "iMessage;-;bad\0id"] {
+      XCTAssertFalse(IMessageClient.isSupportedSendTarget(invalid))
+    }
+  }
+
+  @MainActor func testAutomaticSyncRediscoversChatsPreservingConsentAndCursor() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let (client, db, local) = try fixture(directory)
+    let store = RelayStore(localStore: local, restoreSession: false)
+    store.imessageClient = client
+    store.rooms = try client.discover(); store.setOptIn("imessage:1", true)
+    try await db.write { db in
+      try db.execute(sql: "UPDATE chat SET display_name='Updated group' WHERE ROWID=1")
+      try db.execute(sql: "INSERT INTO chat VALUES ('any;-;new@example.com','New chat','new@example.com','iMessage')")
+      try db.execute(sql: "INSERT INTO message VALUES ('private-new','Never import',NULL,1001000000000,0,0,1,'iMessage')")
+      try db.execute(sql: "INSERT INTO chat_message_join VALUES (4,last_insert_rowid())")
+    }
+    try acknowledge(db, text: "New selected message")
+    await store.syncIMessages()
+    let selected = try XCTUnwrap(store.rooms.first { $0.id == "imessage:1" })
+    XCTAssertEqual(selected.name, "Updated group")
+    XCTAssertTrue(selected.opted_in)
+    XCTAssertEqual(selected.backfill_cursor, "3")
+    XCTAssertEqual(store.messages.map(\.text), ["New selected message"])
+    XCTAssertFalse(try XCTUnwrap(store.rooms.first { $0.id == "imessage:4" }).opted_in)
+    await store.syncIMessages()
+    XCTAssertEqual(store.messages.count, 1)
+    store.locked = true
+    try await db.write { try $0.execute(sql: "UPDATE chat SET display_name='Hidden while locked' WHERE ROWID=1") }
+    await store.syncIMessages()
+    XCTAssertEqual(store.rooms.first { $0.id == "imessage:1" }?.name, "Updated group")
+  }
+
+  @MainActor func testPreflightFailureCanRetryAfterAutomaticRefreshWithoutFalseUncertainState() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let (client, db, local) = try fixture(directory)
+    let store = RelayStore(localStore: local, restoreSession: false)
+    store.imessageClient = client
+    store.rooms = try client.discover(); store.setOptIn("imessage:1", true)
+    let counter = DispatchCounter()
+    store.imessageSend = { _, text in
+      await counter.increment()
+      try self.acknowledge(db, text: text)
+    }
+    try await db.write { try $0.execute(sql: "UPDATE chat SET guid=NULL WHERE ROWID=1") }
+    let transaction = UUID()
+    let failed = await store.sendMessage("Retry draft", room: "imessage:1", transactionID: transaction)
+    XCTAssertFalse(failed)
+    XCTAssertNil(store.outgoing.first?.imessage_after)
+    XCTAssertTrue(store.error?.hasPrefix("Message was not sent.") == true)
+    var count = await counter.count
+    XCTAssertEqual(count, 0)
+    try await db.write { try $0.execute(sql: "UPDATE chat SET guid='any;-;chosen@example.com' WHERE ROWID=1") }
+    let sent = await store.sendMessage("Retry draft", room: "imessage:1", transactionID: transaction)
+    XCTAssertTrue(sent)
+    count = await counter.count
+    XCTAssertEqual(count, 1)
+  }
 }
 #endif

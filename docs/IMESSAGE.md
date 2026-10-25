@@ -9,7 +9,7 @@ Relay on Mac reads chosen conversations from the local Messages database and sen
 3. Open Settings → Connections → iMessage and check access / refresh chats.
 4. Choose the conversations Relay can include. Chats start off; enabling one starts at its current latest message.
 5. To include history, choose **Import Recent Messages** to import up to 100 recent messages per selected chat. Otherwise only new arrivals are imported.
-6. Use **Sync Chosen iMessage Chats**, or keep Relay active for its 30-second refresh.
+6. Relay refreshes the conversation list and chosen messages every three seconds while the Mac workspace is unlocked, including in the background. Opening a conversation, unlocking Relay, and preparing a new send also refresh the chat metadata. **Sync Chosen iMessage Chats** remains available for an immediate refresh.
 
 Pausing a conversation stops ingestion and hides it from Messages in Relay. Existing agreement source evidence is retained. Attachments appear as unsupported placeholders; tapbacks and control events are excluded. Later edits/deletions are not tracked yet.
 
@@ -18,6 +18,8 @@ Pausing a conversation stops ingestion and hides it from Messages in Relay. Exis
 Open a chosen conversation in Relay’s Messages view, type a reply, choose **Review Send**, review the destination and text, then choose **Send Message**. On the first attempt macOS asks to allow Relay to control Messages. Allow it, or enable Relay → Messages under System Settings → Privacy & Security → Automation.
 
 Relay targets the existing iMessage chat GUID, including group chats, and never guesses recipients or falls back to SMS. It records the pending request in its encrypted outbox before asking Messages to send. Success requires matching outgoing text in the same chat after the saved cursor, with no recorded error and `is_sent` set when available. This confirms the outgoing record; check Messages for delivery/read receipts.
+
+Both `iMessage` and unified `any` GUID formats are supported. The local database row must still belong to iMessage, and Messages must confirm that the target chat uses an iMessage account. Refreshing preserves selected chats and import cursors; newly discovered chats remain off. A failure before dispatch reports that the message was not sent and can be retried. Once dispatch may have occurred, refresh/status checks never resend that request.
 
 Messages has no transaction-key API. If sending times out, Relay preserves the draft and **Check Send Status** looks for the existing outgoing message without sending again, including after an app restart. Check Apple Messages before discarding that draft and intentionally starting a new send. Older outbox records created before this feature have no dispatch cursor; only new attempts use this mechanism.
 

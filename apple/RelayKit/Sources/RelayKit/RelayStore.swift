@@ -48,6 +48,7 @@ import SwiftUI
   @Published public private(set) var contactNameError: String?
   private var contactNameGeneration = 0
   private var imessageSyncing = false
+  private var imessageDiscovering = false
   private var workspaceGeneration = UUID()
   #if os(macOS)
   var imessageClient = IMessageClient()
@@ -1002,18 +1003,21 @@ extension RelayStore {
       contactNameError = "Relay couldn’t load contact names. You can still search and choose conversations."
     }
   }
-  public func discoverIMessages() async {
+  @discardableResult public func discoverIMessages() async -> Bool {
     guard !locked, !isDemo else {
       imessageError = "Open your own workspace before connecting iMessage."
-      return
+      return false
     }
+    guard !imessageDiscovering else { return false }
+    imessageDiscovering = true
+    defer { imessageDiscovering = false }
     let generation = workspaceGeneration
     do {
       let client = imessageClient
       let found = try await Task.detached { try client.discover() }.value
-      guard !locked, workspaceGeneration == generation else { return }
+      guard !locked, workspaceGeneration == generation else { return false }
       let existing = Dictionary(uniqueKeysWithValues: rooms.filter { $0.id.hasPrefix("imessage:") }.map { ($0.id, $0) })
-      rooms = rooms.filter { !$0.id.hasPrefix("imessage:") } + found.map { room in
+      let refreshed = rooms.filter { !$0.id.hasPrefix("imessage:") } + found.map { room in
         var value = room
         if let previous = existing[room.id] {
           value.opted_in = previous.opted_in
@@ -1021,13 +1025,16 @@ extension RelayStore {
         }
         return value
       }
-      cacheChats()
+      if rooms != refreshed { rooms = refreshed; cacheChats() }
       imessageError = nil
       imessageStatus = "\(found.count) Conversations Available"
-      beginManual()
+      if !started { beginManual() }
+      return true
     } catch {
+      guard !locked, workspaceGeneration == generation else { return false }
       imessageStatus = "Access Needed"
       imessageError = "Relay couldn’t read Messages. Sign in to Messages, give Relay Full Disk Access, then quit and reopen Relay. If access is already enabled, this Mac’s Messages database may use an unsupported format."
+      return false
     }
   }
   public func setIMessageOptIn(_ id: String, _ enabled: Bool) async {
@@ -1048,6 +1055,11 @@ extension RelayStore {
     }
   }
   public func syncIMessages() async {
+    // Only refresh an already connected integration; don't request database
+    // access just because a new workspace was opened. New chats remain off.
+    guard !locked, !isDemo, !imessageSyncing,
+      rooms.contains(where: { $0.id.hasPrefix("imessage:") }) else { return }
+    guard await discoverIMessages() else { return }
     await importIMessages(recent: false)
   }
   public func importRecentIMessages() async {
@@ -1069,12 +1081,15 @@ extension RelayStore {
         }.value
         guard !locked, workspaceGeneration == generation else { return }
         guard let index = rooms.firstIndex(where: { $0.id == room.id }), rooms[index].opted_in else { continue }
+        let previousCount = messages.count
         for message in result.messages where !messages.contains(where: { $0.id == message.id }) {
           messages.append(message)
         }
-        rooms[index].backfill_cursor = String(max(cursor, result.cursor))
+        let nextCursor = String(max(cursor, result.cursor))
+        let changed = previousCount != messages.count || rooms[index].backfill_cursor != nextCursor
+        rooms[index].backfill_cursor = nextCursor
         // Persist imported messages before advancing the saved cursor.
-        cacheChats()
+        if changed { cacheChats() }
       }
       imessageError = nil
       imessageStatus = "Connected"
@@ -1247,6 +1262,9 @@ extension RelayStore {
     let transactionID = message.id
         let client = imessageClient
         if message.imessage_after == nil {
+          await discoverIMessages()
+          guard !locked, workspaceGeneration == generation, session?.account_id == account else { throw CancellationError() }
+          guard rooms.contains(where: { $0.id == id && $0.opted_in }) else { throw IMessageSendError.invalidChat }
           let prepared = try await Task.detached { (try client.sendTarget(room: id), try client.latest(room: id)) }.value
           guard !locked, workspaceGeneration == generation, session?.account_id == account, rooms.contains(where: { $0.id == id && $0.opted_in }) else { throw CancellationError() }
           message.imessage_after = prepared.1
@@ -1331,9 +1349,14 @@ extension RelayStore {
         outgoing[index].state = "failed"; outgoing[index].error = error.localizedDescription
       }
       try? local.save(outgoing, id: outgoingRecord, dirty: false)
-      self.error = room.id.hasPrefix("imessage:")
-        ? "Send not confirmed. Check Send Status does not resend. \(error.localizedDescription)"
-        : "Delivery was not confirmed. Retry this draft to check the same send request. \(error.localizedDescription)"
+      if room.id.hasPrefix("imessage:") {
+        let dispatched = outgoing.first(where: { $0.id == transactionID })?.imessage_after != nil
+        self.error = dispatched
+          ? "Send not confirmed. Check Send Status does not resend. \(error.localizedDescription)"
+          : "Message was not sent. \(error.localizedDescription)"
+      } else {
+        self.error = "Delivery was not confirmed. Retry this draft to check the same send request. \(error.localizedDescription)"
+      }
       return false
     }
   }
