@@ -12,7 +12,7 @@ struct InboxView: View {
   private var chosen: [ChatRoom] {
     store.rooms.filter { room in
       room.opted_in && (service == nil || room.service == service || room.network == service?.network)
-        && (query.isEmpty || room.name.localizedCaseInsensitiveContains(query)
+        && (query.isEmpty || store.roomName(for: room).localizedCaseInsensitiveContains(query)
           || store.messages.contains(where: { $0.room_id == room.id && !$0.redacted && $0.text.localizedCaseInsensitiveContains(query) }))
     }.sorted { (latest($0)?.ts ?? 0) > (latest($1)?.ts ?? 0) }
   }
@@ -28,8 +28,8 @@ struct InboxView: View {
               ForEach(chosen.prefix(3)) { room in
                 Button { roomID = room.id } label: {
                   VStack(spacing: 8) {
-                    Avatar(name: room.name, size: 64)
-                    Text(room.name).font(.subheadline.weight(.semibold)).lineLimit(1).frame(maxWidth: 96)
+                    Avatar(name: store.roomName(for: room), size: 64)
+                    Text(store.roomName(for: room)).font(.subheadline.weight(.semibold)).lineLimit(1).frame(maxWidth: 96)
                   }.padding(.vertical, 8)
                 }.buttonStyle(.plain)
               }
@@ -45,17 +45,17 @@ struct InboxView: View {
         ForEach(chosen) { room in
           Button { roomID = room.id } label: {
             HStack(alignment: .center, spacing: 12) {
-              Avatar(name: room.name, size: 48)
+              Avatar(name: store.roomName(for: room), size: 48)
               VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline) {
-                  Text(room.name).font(.headline)
+                  Text(store.roomName(for: room)).font(.headline)
                   Spacer()
                   if let message = latest(room) {
                     Text(Date(timeIntervalSince1970: Double(message.ts) / 1000).formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(RelayTheme.muted)
                   }
                 }
                 if let message = latest(room) {
-                  Text(message.redacted ? "Message deleted" : "\(message.sender.display_name_snapshot): \(message.text)")
+                  Text(message.redacted ? "Message deleted" : "\(store.displayName(for: message.sender)): \(message.text)")
                     .font(.subheadline).foregroundStyle(RelayTheme.muted).lineLimit(2)
                 } else { Text("No imported messages yet").font(.subheadline).foregroundStyle(RelayTheme.muted) }
                 Text(room.service?.name ?? room.network.label).font(.caption).foregroundStyle(RelayTheme.accentText)

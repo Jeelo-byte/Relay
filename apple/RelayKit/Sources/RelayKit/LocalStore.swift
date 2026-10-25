@@ -46,6 +46,7 @@ public final class LocalStore {
       )
       try db.execute(
         sql: "CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+      try db.execute(sql: "CREATE TABLE IF NOT EXISTS local_chunks (id TEXT PRIMARY KEY, collection TEXT NOT NULL, envelope BLOB NOT NULL)")
     }
     #if os(iOS)
       try FileManager.default.setAttributes(
@@ -62,14 +63,30 @@ public final class LocalStore {
       else { return nil }
       let envelope: Data = row["envelope"]
       let revision: Int = row["revision"]
-      return try JSONDecoder().decode(
-        type,
-        from: RelayCrypto.open(envelope, dek: dek, account: namespace, row: id, version: revision))
+      var clear = try RelayCrypto.open(envelope, dek: dek, account: namespace, row: id, version: revision)
+      if let manifest = try? JSONDecoder().decode(LocalChunkManifest.self, from: clear), manifest.schema == "relay.local-chunks/1" {
+        guard manifest.chunks.count <= 4096 else { throw VaultError.tooLarge }
+        clear = Data()
+        for chunk in manifest.chunks {
+          guard let envelope = try Data.fetchOne(db, sql: "SELECT envelope FROM local_chunks WHERE id=? AND collection=?",
+            arguments: [chunk.uuidString.lowercased(), id.uuidString.lowercased()]) else { throw VaultError.invalidEnvelope }
+          clear.append(try RelayCrypto.open(envelope, dek: dek, account: namespace, row: chunk, version: 1))
+        }
+        guard clear.count == manifest.size, RelayCrypto.hash(clear) == manifest.hash else { throw VaultError.invalidEnvelope }
+      }
+      return try JSONDecoder().decode(type, from: clear)
     }
   }
   public func save<T: Encodable>(
     _ value: T, id: UUID, dirty: Bool = true, serverVersion: Int? = nil
   ) throws {
+    try saveData(JSONEncoder().encode(value), id: id, dirty: dirty, serverVersion: serverVersion, chunked: false)
+  }
+  /// Device-only collections use authenticated chunks; synced records retain the wire-size limit.
+  public func saveCollection<T: Encodable>(_ value: T, id: UUID) throws {
+    try saveData(JSONEncoder().encode(value), id: id, dirty: false, serverVersion: nil, chunked: true)
+  }
+  private func saveData(_ value: Data, id: UUID, dirty: Bool, serverVersion: Int?, chunked: Bool) throws {
     try db.write { db in
       let row = try Row.fetchOne(
         db, sql: "SELECT revision,server_version,dirty FROM local_records WHERE id=?",
@@ -83,7 +100,20 @@ public final class LocalStore {
           arguments: [id.uuidString.lowercased(), serverVersion])
       }
       let pending = dirty || (serverVersion == nil && (row?["dirty"] as Bool? ?? false))
-      let data = try JSONEncoder().encode(value)
+      var data = value
+      try db.execute(sql: "DELETE FROM local_chunks WHERE collection=?", arguments: [id.uuidString.lowercased()])
+      if chunked && value.count > 60_000 {
+        var chunks: [UUID] = []
+        for start in stride(from: 0, to: value.count, by: 60_000) {
+          let chunk = UUID()
+          let clear = value.subdata(in: start..<min(start + 60_000, value.count))
+          let envelope = try RelayCrypto.seal(clear, dek: dek, account: namespace, row: chunk, version: 1)
+          try db.execute(sql: "INSERT INTO local_chunks (id,collection,envelope) VALUES (?,?,?)",
+            arguments: [chunk.uuidString.lowercased(), id.uuidString.lowercased(), envelope])
+          chunks.append(chunk)
+        }
+        data = try JSONEncoder().encode(LocalChunkManifest(chunks: chunks, size: value.count, hash: RelayCrypto.hash(value)))
+      }
       let envelope = try RelayCrypto.seal(
         data, dek: dek, account: namespace, row: id, version: revision)
       try db.execute(
@@ -136,6 +166,7 @@ public final class LocalStore {
   }
   public func remove(_ id: UUID) throws {
     try db.write { db in
+      try db.execute(sql: "DELETE FROM local_chunks WHERE collection=?", arguments: [id.uuidString.lowercased()])
       try db.execute(
         sql: "DELETE FROM local_records WHERE id=?", arguments: [id.uuidString.lowercased()])
     }
@@ -160,4 +191,11 @@ public final class LocalStore {
       try db.execute(sql: "DELETE FROM metadata WHERE key='since'")
     }
   }
+}
+
+private struct LocalChunkManifest: Codable {
+  var schema = "relay.local-chunks/1"
+  var chunks: [UUID]
+  var size: Int
+  var hash: Data
 }

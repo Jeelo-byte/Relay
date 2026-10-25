@@ -8,6 +8,8 @@ public struct OutgoingMessage: Codable, Identifiable, Equatable, Sendable {
   public var state: String
   public var event_id: String?
   public var error: String?
+  /// Persisted before invoking Messages. Retries only reconcile once dispatch may have occurred.
+  public var imessage_after: Int64?
   public init(id: UUID = UUID(), room: String, body: String) {
     self.id = id; room_id = room; self.body = body; created_at = Clock.ms; state = "pending"
   }

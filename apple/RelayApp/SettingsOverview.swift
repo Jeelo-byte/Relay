@@ -52,6 +52,7 @@ struct ConnectionSettingsView: View {
       Section("Your conversations. Your choice.") {
         Text("Connect only the apps and chats you choose. You can pause a chat at any time.")
         LabeledContent("Message Server", value: store.matrixStatus)
+        Button("Set Up WhatsApp") { store.setupActive = true }
         Button("Connect Messages or Choose Chats") { connect = true }
       }
       ConnectionsView()
@@ -149,7 +150,7 @@ struct HelpSettingsView: View {
       Section("Start with one conversation") { Text("Connect an app in Settings, then choose the chats Relay can include. Full conversations stay on your device and your message server.") }
       Section("Recaps") { Text("Quoted highlights work without a model. Load Gemma in Processing & Workspace for local written recaps. Open a recap to inspect its original sources.") }
       Section("Events") { Text("Review suggested plans before accepting them. Money is grouped by currency. Completing an agreement never sends money or messages.") }
-      Section("Messages") { Text("Edit your draft, choose Review Send, then confirm the destination and message. A failed send keeps the same transaction identity when retried. iMessage currently uses the read-only Mac connection.") }
+      Section("Messages") { Text("Edit your draft, choose Review Send, then confirm the destination and message. Matrix retries keep the same transaction identity. iMessage on Mac sends through Messages with Automation permission. Check Send Status checks an uncertain iMessage without resending it. Import contacts or link profiles in People.") }
       Section("Your data") { Text("Use Privacy & Data to export agreements, restore dismissed items, and manage your account. Person notes currently stay encrypted on the device where you create them.") }
     }.navigationTitle("Help & Feedback")
   }

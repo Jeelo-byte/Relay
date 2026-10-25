@@ -34,6 +34,10 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_NSCameraUsageDescription: Relay does not use the camera.
         INFOPLIST_KEY_NSFaceIDUsageDescription: Unlock your private Relay agreements.
+        INFOPLIST_KEY_NSContactsUsageDescription: Relay imports contact names, phone numbers, and email addresses to link profiles across your messaging apps on this device.
+        INFOPLIST_KEY_NSAppleEventsUsageDescription: Relay sends the replies you review through Messages on this Mac.
+        'CODE_SIGN_ENTITLEMENTS[sdk=macosx*]': apple/RelayMac.entitlements
+        'ENABLE_HARDENED_RUNTIME[sdk=macosx*]': YES
         INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES

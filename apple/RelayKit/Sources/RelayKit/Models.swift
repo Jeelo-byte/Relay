@@ -308,6 +308,7 @@ public struct ChatMessage: Codable, Identifiable, Equatable, Sendable {
   }
 }
 public struct ChatRoom: Codable, Identifiable, Equatable, Sendable {
+  public var participants: [Party] = []
   public var service: MessagingService?
   public var encrypted: Bool = false
   public var backfill_cursor: String?
@@ -318,8 +319,8 @@ public struct ChatRoom: Codable, Identifiable, Equatable, Sendable {
   public var opted_in = false
   public var member_count = 2
   public var id: String { room_id }
-  enum CodingKeys:String,CodingKey{case service,encrypted,backfill_cursor,backfill_state,room_id,name,network,opted_in,member_count}
-  public init(from decoder:Decoder)throws{let c=try decoder.container(keyedBy:CodingKeys.self);service=try c.decodeIfPresent(MessagingService.self,forKey:.service);encrypted=try c.decodeIfPresent(Bool.self,forKey:.encrypted) ?? false;backfill_cursor=try c.decodeIfPresent(String.self,forKey:.backfill_cursor);backfill_state=try c.decodeIfPresent(String.self,forKey:.backfill_state) ?? "none";room_id=try c.decode(String.self,forKey:.room_id);name=try c.decode(String.self,forKey:.name);network=try c.decode(Network.self,forKey:.network);opted_in=try c.decodeIfPresent(Bool.self,forKey:.opted_in) ?? false;member_count=try c.decodeIfPresent(Int.self,forKey:.member_count) ?? 2}
+  enum CodingKeys:String,CodingKey{case participants,service,encrypted,backfill_cursor,backfill_state,room_id,name,network,opted_in,member_count}
+  public init(from decoder:Decoder)throws{let c=try decoder.container(keyedBy:CodingKeys.self);participants=try c.decodeIfPresent([Party].self,forKey:.participants) ?? [];service=try c.decodeIfPresent(MessagingService.self,forKey:.service);encrypted=try c.decodeIfPresent(Bool.self,forKey:.encrypted) ?? false;backfill_cursor=try c.decodeIfPresent(String.self,forKey:.backfill_cursor);backfill_state=try c.decodeIfPresent(String.self,forKey:.backfill_state) ?? "none";room_id=try c.decode(String.self,forKey:.room_id);name=try c.decode(String.self,forKey:.name);network=try c.decode(Network.self,forKey:.network);opted_in=try c.decodeIfPresent(Bool.self,forKey:.opted_in) ?? false;member_count=try c.decodeIfPresent(Int.self,forKey:.member_count) ?? 2}
   public init(id: String, name: String, network: Network, optedIn: Bool = false) {
     room_id = id
     self.name = name

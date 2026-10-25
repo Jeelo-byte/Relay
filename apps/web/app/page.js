@@ -2,8 +2,9 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import EventsWorkspace, { Icon, formatDue, initials } from "./EventsWorkspace";
-import { PeopleWorkspace, SourceMessages, WebSettings } from "./WorkspacePanels";
+import { PeopleWorkspace, WebSettings } from "./WorkspacePanels";
 import RecapsWorkspace from "./RecapsWorkspace";
+import LiveMessages from "./LiveMessages";
 import {
   derive,
   unwrap,
@@ -53,28 +54,30 @@ export default function Relay() {
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
-    const obj = r.status === 204 ? {} : await r.json();
-    if (!r.ok)
-      throw Error(
-        obj.error?.message ||
-          (r.status === 409
-            ? "Changed on another device. Refresh and try again."
-            : "Connection failed."),
-      );
+    const obj = r.status === 204 ? {} : await r.json().catch(() => ({ error: { message: "The Relay server returned an invalid response. Check that the web server is running." } }));
+    if (!r.ok) {
+      const error = Error(obj.error?.message || (r.status === 409
+        ? "Changed on another device. Refresh and try again." : "Connection failed."));
+      error.status = r.status;
+      throw error;
+    }
     return obj;
   }
   async function login(e) {
     e.preventDefault();
     setBusy(true);
     setError("");
+    let keys, result, dek;
     try {
-      const h = handle.toLowerCase();
+      if (!globalThis.isSecureContext || !crypto.subtle)
+        throw Error("Open Relay on localhost or through HTTPS to unlock encrypted sync.");
+      const h = handle.trim().toLowerCase();
       if (!/^[a-z0-9_]{3,32}$/.test(h))
         throw Error("Use your Relay account handle.");
-      const pre = await api("prelogin?handle=" + h),
-        keys = await derive(pass, from64(pre.kdf_salt));
+      const pre = await api("prelogin?handle=" + h);
+      keys = await derive(pass, from64(pre.kdf_salt));
       const device = crypto.randomUUID();
-      const result = await api("sessions", {
+      result = await api("sessions", {
         handle: h,
         auth_key: to64(keys.auth),
         device: { device_id: device, priority: 1 },
@@ -82,7 +85,8 @@ export default function Relay() {
       const w = result.wraps.find(
         (w) => w.wrap_type === "passphrase" && w.key_version === 1,
       );
-      const dek = await unwrap(
+      if (!w) throw Error("This account’s passphrase key is unavailable.");
+      dek = await unwrap(
         from64(w.wrapped_dek),
         keys.kek,
         result.account_id,
@@ -94,8 +98,11 @@ export default function Relay() {
       setPass("");
       await pull(s);
     } catch (e) {
+      dek?.fill(0);
+      if (result?.token) api("sessions/current", null, "DELETE", result.token).catch(() => {});
       setError(e.message);
     } finally {
+      keys?.kek.fill(0); keys?.auth.fill(0);
       setBusy(false);
     }
   }
@@ -115,7 +122,9 @@ export default function Relay() {
         );
         if (generation !== epoch.current) return;
         const changes = [];
+        let unverified = false;
         for (const row of result.items) {
+          row.row_id = row.row_id.toLowerCase();
           if (row.version <= (versions.current.get(row.row_id) || 0)) continue;
           if (row.deleted) {
             changes.push({ id: row.row_id, deleted: true });
@@ -125,21 +134,20 @@ export default function Relay() {
           try {
             const value = await openBlob(row, s.dek, s.account_id);
             if (generation !== epoch.current) return;
+            if (row.version <= (versions.current.get(row.row_id) || 0)) continue;
             const sampleRoom = (id) => id.startsWith("!demo-") && id.endsWith(":relay.local");
             if ((value.schema === "relay.recap/1" && sampleRoom(value.room_id)) ||
-              (value.source_room_ids?.length && value.source_room_ids.every(sampleRoom))) continue;
+              (value.source_room_ids?.length && value.source_room_ids.every(sampleRoom))) {
+              versions.current.set(row.row_id, row.version); continue;
+            }
             changes.push(value);
             versions.current.set(row.row_id, row.version);
-          } catch {
-            setError(
-              "An encrypted record could not be verified. It was left unchanged.",
-            );
-          }
+          } catch { unverified = true; }
         }
         setItems((old) => {
           const map = new Map(old.map((a) => [a.id.toLowerCase(), a]));
           for (const a of changes) {
-            if (a.deleted) map.delete(a.id);
+            if (a.deleted) map.delete(a.id.toLowerCase());
             else if (a.schema === "relay.agreement/1") map.set(a.id.toLowerCase(), a);
           }
           return [...map.values()];
@@ -152,12 +160,14 @@ export default function Relay() {
           }
           return [...map.values()];
         });
+        if (unverified) throw Error("An encrypted record could not be verified. Sync will retry; its position has been preserved.");
         since.current = result.next_since;
         more = result.has_more;
       }
-      if (generation === epoch.current) setStatus("Synced");
+      if (generation === epoch.current) { setStatus("Synced"); setError(""); }
     } catch (e) {
       if (generation !== epoch.current) return;
+      if (e.status === 401) { lock(); setError("Your session expired or this device was removed. Unlock Relay again."); return; }
       setStatus("Not Synced");
       setError(e.message);
     } finally {
@@ -165,6 +175,7 @@ export default function Relay() {
     }
   }
   function lock() {
+    if (session?.token) api("sessions/current", null, "DELETE", session.token).catch(() => {});
     epoch.current += 1;
     pulling.current = false;
     setQuery("");
@@ -179,6 +190,7 @@ export default function Relay() {
     versions.current = new Map();
     since.current = 0;
     setStatus("Locked");
+    setBusy(false);
     setError("");
   }
   useEffect(() => {
@@ -186,9 +198,26 @@ export default function Relay() {
     const timer = setInterval(() => pull(session), 30000);
     const focus = () => pull(session);
     window.addEventListener("focus", focus);
+    window.addEventListener("online", focus);
     return () => {
       clearInterval(timer);
       window.removeEventListener("focus", focus);
+      window.removeEventListener("online", focus);
+    };
+  }, [session]);
+  useEffect(() => {
+    if (!session) return;
+    let timeout;
+    const activity = () => { clearTimeout(timeout); timeout = setTimeout(lock, 5 * 60 * 1000); };
+    const pagehide = () => lock();
+    const events = ["pointerdown", "keydown", "touchstart"];
+    events.forEach(event => window.addEventListener(event, activity, { passive: true }));
+    window.addEventListener("pagehide", pagehide);
+    activity();
+    return () => {
+      clearTimeout(timeout);
+      events.forEach(event => window.removeEventListener(event, activity));
+      window.removeEventListener("pagehide", pagehide);
     };
   }, [session]);
   async function change(a, kind) {
@@ -339,7 +368,7 @@ export default function Relay() {
         {destination === "Recaps" && <RecapsWorkspace recaps={recaps} items={items} onSelectAgreement={setSelected} onSettings={() => navigate("Settings")} />}
         {destination === "Events" && !browse && <EventsWorkspace items={visible} onSelect={setSelected} onBrowse={openBrowse} />}
         {destination === "People" && <PeopleWorkspace items={items} onSelect={setSelected} />}
-        {destination === "Messages" && <SourceMessages items={items} />}
+        <div hidden={destination !== "Messages"}><LiveMessages items={items} /></div>
         {destination === "Settings" && <WebSettings session={session} items={items} lock={lock} />}
         {destination === "Events" && browse && <>
       <section className="list">

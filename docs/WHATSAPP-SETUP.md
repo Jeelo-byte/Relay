@@ -41,7 +41,7 @@ Right-click a text message on Mac, or touch and hold on iPhone/iPad, for **Creat
 - Waiting for decryption: keep WhatsApp on the phone connected. The bridge needs keys or a resend; Relay replaces its placeholder when recovery arrives.
 - Photo unavailable: Retry Photo, check the message-server connection, and verify the original opens in WhatsApp.
 - Too Many Requests: room discovery resumes gradually; repeated reconnects do not speed it up.
-- Phone/web mismatch: loopback addresses refer to the device using them. Live cross-device WhatsApp ingestion is not yet verified. The website currently shows saved source excerpts rather than full live rooms.
+- Phone/web mismatch: loopback addresses refer to the device using them. Live cross-device WhatsApp ingestion is not yet verified. The website offers Messages → Live Chats with its own Matrix login and per-chat inclusion; Saved Sources still shows synced excerpts. See [website and Docker setup](WEB-SETUP.md).
 
 Messages are decrypted by the bridge on the Mac and stored in the local message server. Relay's local records are encrypted; Neon receives encrypted derived records and short source excerpts. Pairing credentials stay in ignored private storage.
 

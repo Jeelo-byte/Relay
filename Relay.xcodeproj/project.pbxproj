@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A83D61C6D1D04F7D920A3B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A83D61C6D1D04F7D920A3B02 /* Assets.xcassets */; };
 		0378AFB9222EC10A53D65C19 /* CalendarDraftTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BCF405907D62ACF1EACA53 /* CalendarDraftTransfer.swift */; };
 		087C61BD8A2FF20699CD4C80 /* AgreementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */; };
 		36106F372C8FED63A9C7C24A /* MatrixConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */; };
@@ -22,7 +21,9 @@
 		963C9D4CC221F73DC5D73357 /* AgreementDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */; };
 		9A4BB634D3E171AD7A825B65 /* RelayUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E7A997B5D969E134813EF8 /* RelayUITests.swift */; };
 		A920C5C124F4315597AE5E70 /* PeopleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE21C650BCE4CC475561ACFF /* PeopleView.swift */; };
+		B2240D89DD48E2FBCEFF0EDC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 23FC9CC9D8ABE62FF28A39A8 /* Assets.xcassets */; };
 		B6C7119BB13672B616B2AD66 /* IMessageConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5842485F8F54AA84AA76A76D /* IMessageConnectView.swift */; };
+		C248B9054F586CD6D8D93B39 /* ContactEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5737FD40F209ECD39C79C7B /* ContactEditor.swift */; };
 		C77823F2941F993CEC75CC9C /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E54D75C178A04FFA53DAA9 /* InboxView.swift */; };
 		D23A50F30C6DED207B3B9FE7 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635DE6AC84943DDDCC29E1AD /* RootView.swift */; };
 		D8E913E526A6D37D9EEF2580 /* PassphraseSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFCBC050CBCE1762B12CD5D /* PassphraseSettingsView.swift */; };
@@ -45,11 +46,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A83D61C6D1D04F7D920A3B02 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0EBD94A81CAB1263757E4877 /* RecapsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecapsView.swift; sourceTree = "<group>"; };
 		12E54D75C178A04FFA53DAA9 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
 		148DA32B423D43F136985A4F /* AccountRecoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRecoveryView.swift; sourceTree = "<group>"; };
 		16B710E2D51FDAF95F423A29 /* ChatSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSearchView.swift; sourceTree = "<group>"; };
+		23FC9CC9D8ABE62FF28A39A8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3346FDA187AAF769417D00F5 /* AgreementEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgreementEditor.swift; sourceTree = "<group>"; };
 		4F1DAAEA2E18C5B8E3E774D7 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		563A7CF12A1A13FCB46097F8 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
@@ -63,6 +64,7 @@
 		A3D62FC39932391D1E796A62 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A51D875E65B6F594CC18612E /* SettingsOverview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsOverview.swift; sourceTree = "<group>"; };
 		B2640FB004F58617990C7498 /* Relay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Relay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B5737FD40F209ECD39C79C7B /* ContactEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactEditor.swift; sourceTree = "<group>"; };
 		BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgreementDetailView.swift; sourceTree = "<group>"; };
 		BFFCBC050CBCE1762B12CD5D /* PassphraseSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassphraseSettingsView.swift; sourceTree = "<group>"; };
 		C957A1DFC0B6415DA60C7B5D /* ConnectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsView.swift; sourceTree = "<group>"; };
@@ -89,14 +91,15 @@
 		0067E777BFD7D4ED74433801 /* RelayApp */ = {
 			isa = PBXGroup;
 			children = (
-				A83D61C6D1D04F7D920A3B02 /* Assets.xcassets */,
 				148DA32B423D43F136985A4F /* AccountRecoveryView.swift */,
 				BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */,
 				3346FDA187AAF769417D00F5 /* AgreementEditor.swift */,
 				F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */,
+				23FC9CC9D8ABE62FF28A39A8 /* Assets.xcassets */,
 				D8BCF405907D62ACF1EACA53 /* CalendarDraftTransfer.swift */,
 				16B710E2D51FDAF95F423A29 /* ChatSearchView.swift */,
 				C957A1DFC0B6415DA60C7B5D /* ConnectionsView.swift */,
+				B5737FD40F209ECD39C79C7B /* ContactEditor.swift */,
 				92AF40323AFE9D42E68594FD /* DeleteAccountView.swift */,
 				D7E3B750496CA06F209AF177 /* EventsHomeView.swift */,
 				5842485F8F54AA84AA76A76D /* IMessageConnectView.swift */,
@@ -161,8 +164,8 @@
 			buildConfigurationList = 123F6CBD015F52CA68038BCE /* Build configuration list for PBXNativeTarget "Relay" */;
 			buildPhases = (
 				EC79C452CC5E84280E112945 /* Sources */,
+				B2BD664DAF308B86A7FDF1AC /* Resources */,
 				EF50208E6B06E9FF6A31ED33 /* Frameworks */,
-				A83D61C6D1D04F7D920A3B03 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -195,17 +198,6 @@
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
-
-/* Begin PBXResourcesBuildPhase section */
-		A83D61C6D1D04F7D920A3B03 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A83D61C6D1D04F7D920A3B01 /* Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXProject section */
 		00400E7BA46B4893DB3DAE46 /* Project object */ = {
@@ -246,6 +238,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		B2BD664DAF308B86A7FDF1AC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B2240D89DD48E2FBCEFF0EDC /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		18859D49C3B139ACBF876672 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -266,6 +269,7 @@
 				0378AFB9222EC10A53D65C19 /* CalendarDraftTransfer.swift in Sources */,
 				F6EBC4BEFC213643ADFC9036 /* ChatSearchView.swift in Sources */,
 				7404E148BA6ABB6072D8B1AC /* ConnectionsView.swift in Sources */,
+				C248B9054F586CD6D8D93B39 /* ContactEditor.swift in Sources */,
 				F1A839E304FF6F246DFD85CB /* DeleteAccountView.swift in Sources */,
 				8A27F79D92E69DF1699CFDD5 /* EventsHomeView.swift in Sources */,
 				B6C7119BB13672B616B2AD66 /* IMessageConnectView.swift in Sources */,
@@ -428,12 +432,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = apple/RelayMac.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Relay;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Relay sends the replies you review through Messages on this Mac.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Relay does not use the camera.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Relay imports contact names, phone numbers, and email addresses to link profiles across your messaging apps on this device.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your private Relay agreements.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -473,12 +481,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = apple/RelayMac.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Relay;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Relay sends the replies you review through Messages on this Mac.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Relay does not use the camera.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Relay imports contact names, phone numbers, and email addresses to link profiles across your messaging apps on this device.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your private Relay agreements.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

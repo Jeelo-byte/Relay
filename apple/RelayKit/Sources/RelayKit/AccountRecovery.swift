@@ -30,6 +30,6 @@ extension APIClient {
     struct Result: Decodable { var token: String; var account_id: UUID }
     let result = try JSONDecoder().decode(Result.self, from: data)
     guard result.account_id == pre.account_id else { throw VaultError.invalidEnvelope }
-    return (AccountSession(account_id: result.account_id, handle: handle, token: result.token, dek: dek, device_id: device, baseURL: baseURL), newCode)
+    return (AccountSession(account_id: result.account_id, handle: handle, token: result.token, dek: dek, device_id: device, baseURL: baseURL, offlineUnlock: OfflineUnlock(salt: salt, wrappedKey: passWrap)), newCode)
   }
 }

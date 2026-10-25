@@ -1,0 +1,77 @@
+import Foundation
+
+public enum SetupStep: Int, Codable, CaseIterable, Identifiable {
+  case welcome, link, chats, delivery
+  public var id: Int { rawValue }
+  public var label: String {
+    switch self {
+    case .welcome: "Get started"
+    case .link: "Link WhatsApp"
+    case .chats: "Choose chats"
+    case .delivery: "Check delivery"
+    }
+  }
+}
+
+public struct PairingUpdate: Equatable {
+  public enum State: Equatable { case waiting, code, linked, expired, failed }
+  public var state: State
+  public var imageURL: String?
+  public var message: String
+  public var eventID: String?
+  // Only bridge-authored responses after the current request may advance setup.
+  public static func parse(_ events: [[String: Any]], bot: String, after: Int64, now: Int64) -> Self {
+    for event in events.sorted(by: { ($0["origin_server_ts"] as? Int64 ?? 0) > ($1["origin_server_ts"] as? Int64 ?? 0) }) {
+      guard event["sender"] as? String == bot,
+        let ts = event["origin_server_ts"] as? Int64, ts >= after,
+        let original = event["content"] as? [String: Any] else { continue }
+      let content = original["m.new_content"] as? [String: Any] ?? original
+      let body = (content["body"] as? String ?? "").lowercased()
+      let id = event["event_id"] as? String
+      if body.contains("successfully logged in") || body.contains("connected to whatsapp") || body.contains("already logged in") {
+        return Self(state: .linked, message: "WhatsApp linked. Choose which chats to include.", eventID: id)
+      }
+      if body.contains("not logged in") || body.contains("disconnected") || body.contains("failed") || body.contains("error") {
+        return Self(state: .failed, message: "WhatsApp is disconnected. Request a new pairing code to reconnect.", eventID: id)
+      }
+      if body.contains("expired") || body.contains("timed out") {
+        return Self(state: .expired, message: "The pairing code expired. Show a new code and try again.", eventID: id)
+      }
+      if content["msgtype"] as? String == "m.image", let url = content["url"] as? String {
+        // A code is never displayed indefinitely if the bridge stops updating it.
+        guard now - ts < 20_000 else {
+          return Self(state: .expired, message: "The pairing code expired. Show a new code.", eventID: id)
+        }
+        return Self(state: .code, imageURL: url, message: "Scan with WhatsApp → Settings → Linked Devices → Link a Device.", eventID: id)
+      }
+    }
+    return Self(state: .waiting, message: "Waiting for the WhatsApp bridge…")
+  }
+}
+
+extension MatrixClient {
+  public func whatsappManagementRoom() async throws -> String {
+    let filter: [String: Any] = ["room": ["timeline": ["limit": 0], "state": ["types": ["m.room.member"]]]]
+    let sync = try await Self.request(server: session.server, path: "sync?timeout=0&filter=\(Self.query(filter))", token: session.access_token)
+    let joined = (sync["rooms"] as? [String: Any])?["join"] as? [String: [String: Any]] ?? [:]
+    if let existing = joined.first(where: { _, room in
+      let members = Self.events(room, key: "state").filter {
+        $0["type"] as? String == "m.room.member" && ($0["content"] as? [String: Any])?["membership"] as? String == "join"
+      }
+      return members.count == 2 && members.contains { $0["state_key"] as? String == MessagingService.whatsapp.bot }
+    }) { return existing.key }
+    let result = try await Self.request(server: session.server, path: "createRoom", token: session.access_token, method: "POST", body: [
+      "preset": "private_chat", "invite": [MessagingService.whatsapp.bot], "is_direct": true, "name": "Relay · WhatsApp setup"
+    ])
+    guard let id = result["room_id"] as? String else { throw VaultError.invalidEnvelope }
+    return id
+  }
+  public func requestWhatsAppPairing(room: String, command: String = "login qr") async throws {
+    guard ["login qr", "ping"].contains(command) else { throw VaultError.invalidEnvelope }
+    _ = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/send/m.room.message/\(UUID().uuidString)", token: session.access_token, method: "PUT", body: ["msgtype": "m.text", "body": command])
+  }
+  public func whatsappPairing(room: String, after: Int64) async throws -> PairingUpdate {
+    let result = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/messages?dir=b&limit=30", token: session.access_token)
+    return PairingUpdate.parse(result["chunk"] as? [[String: Any]] ?? [], bot: MessagingService.whatsapp.bot, after: after, now: Int64(Date().timeIntervalSince1970 * 1000))
+  }
+}
