@@ -85,13 +85,16 @@ public final class APIClient {
       PullResponse.self, from: await request("blobs?since=\(since)&limit=500"))
   }
   public func put(_ a: Agreement, session: AccountSession, base: Int) async throws -> PutResponse {
+    try await putRecord(a, id: a.id, session: session, base: base)
+  }
+  public func putRecord<T: Encodable>(_ value: T, id: UUID, session: AccountSession, base: Int) async throws -> PutResponse {
     let enc = try RelayCrypto.seal(
-      JSONEncoder().encode(a), dek: session.dek, account: session.account_id, row: a.id,
+      JSONEncoder().encode(value), dek: session.dek, account: session.account_id, row: id,
       version: base + 1)
     return try JSONDecoder().decode(
       PutResponse.self,
       from: await request(
-        "blobs/\(a.id.uuidString.lowercased())", method: "PUT",
+        "blobs/\(id.uuidString.lowercased())", method: "PUT",
         body: ["base_version": base, "key_version": 1, "envelope": enc.base64URL]))
   }
   public static var priority: Int {

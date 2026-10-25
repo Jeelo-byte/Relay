@@ -34,7 +34,7 @@ struct WelcomeView: View {
           Button("Start on This Device") { store.beginManual() }.font(.subheadline)
         }.frame(maxWidth: .infinity)
         Text(
-          "A shared-understanding view, not a legal contract.\nYour messages are never shared with other participants."
+          "A shared-understanding view, not a legal contract.\nOnly messages you explicitly send go to a conversation."
         ).font(.caption).foregroundStyle(RelayTheme.muted).multilineTextAlignment(.center).frame(
           maxWidth: .infinity)
       }.padding(32).frame(maxWidth: 520).frame(maxWidth: .infinity)

@@ -4,13 +4,20 @@ import SwiftUI
 @main struct RelayApp: App {
   @StateObject private var store = RelayStore()
   @StateObject private var model = ModelManager()
+  @StateObject private var reminders = ReminderScheduler()
   @Environment(\.scenePhase) private var scenePhase
   @State private var privacyCover = false
   @State private var inactiveSince: Date?
   @AppStorage("relay.lockAfter") private var lockAfter = 300
   var mainWindow: some Scene {
     WindowGroup {
-      RootView().environmentObject(store).environmentObject(model).tint(RelayTheme.primary)
+      RootView().environmentObject(store).environmentObject(model).environmentObject(reminders).tint(RelayTheme.primary)
+        .onChange(of: store.agreements) { _, values in
+          if !store.locked { Task { await reminders.refresh(agreements: values) } }
+        }
+        .onChange(of: store.session?.account_id) { _, _ in
+          Task { await reminders.refresh(agreements: store.locked ? [] : store.agreements) }
+        }
         .preferredColorScheme(nil)
         .overlay { if privacyCover && store.started { PrivacyView() } }
         .onChange(of: scenePhase) { _, phase in
@@ -59,7 +66,7 @@ import SwiftUI
           }
         }
       Settings {
-        SettingsView().environmentObject(store).environmentObject(model).frame(
+        NavigationStack { SettingsView() }.environmentObject(store).environmentObject(model).environmentObject(reminders).frame(
           width: 600, height: 650
         ).tint(RelayTheme.primary)
       }

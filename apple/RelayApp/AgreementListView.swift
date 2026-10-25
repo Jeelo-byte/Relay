@@ -10,11 +10,13 @@ struct AgreementListView: View {
   var onNew: () -> Void
   var onEdit: (Agreement) -> Void
   var compact = false
+  var kind: AgreementKind? = nil
   @State private var searchPresented = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var filtered: [Agreement] {
     store.visible.filter {
       filter.includes($0)
+        && (kind == nil || $0.kind == kind)
         && (search.isEmpty
           || ($0.title + " " + ($0.counterparty?.display_name_snapshot ?? "") + " "
             + $0.obligations.map(\.what).joined(separator: " ")).localizedCaseInsensitiveContains(

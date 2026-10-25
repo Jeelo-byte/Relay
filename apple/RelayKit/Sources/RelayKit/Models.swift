@@ -243,6 +243,7 @@ public struct Agreement: Codable, Identifiable, Equatable, Sendable {
   public var timeline: [TimelineEvent] = []
   public var covered_event_ids: [String] = []
   public var source_room_ids: [String] = []
+  public var source_room_names: [String]? = nil
   public var flags: AgreementFlags = .init()
   public var provenance: Provenance = .init()
   public var user_note: String? = nil

@@ -224,6 +224,27 @@ export async function handleAPI(request) {
       await sql`DELETE FROM sessions WHERE token_hash=${bytea(hash(Buffer.from(token)))}`;
       return respond(null, 204);
     }
+    if (path === "devices" && method === "GET") {
+      const devices = await sql`SELECT device_id,priority,created_at,last_seen_at,revoked_at FROM devices WHERE account_id=${account} ORDER BY created_at`;
+      return respond({ devices: devices.map((d) => ({ ...d, current: d.device_id === session.device_id })) });
+    }
+    const deviceMatch = path.match(/^devices\/([0-9a-f-]+)$/i);
+    if (deviceMatch && method === "DELETE") {
+      const device = deviceMatch[1];
+      if (!uuid(device)) fail(400, "bad_request", "Invalid device identity.");
+      await limit(account + ":security", 10, 3600);
+      const [a] = await sql`SELECT auth_verifier FROM accounts WHERE account_id=${account}`;
+      if (decode(body.auth_key).length !== 32 || !equal(hash(decode(body.auth_key)), Buffer.from(a.auth_verifier)))
+        fail(401, "bad_credentials", "Confirm your current passphrase to remove a device.");
+      const [target] = await sql`SELECT device_id FROM devices WHERE account_id=${account} AND device_id=${device}`;
+      if (!target) fail(404, "not_found", "Device not found.");
+      await sql.transaction([
+        sql`UPDATE devices SET revoked_at=COALESCE(revoked_at,now()) WHERE account_id=${account} AND device_id=${device}`,
+        sql`DELETE FROM sessions WHERE account_id=${account} AND device_id=${device}`,
+        sql`DELETE FROM leases WHERE account_id=${account} AND holder_device_id=${device}`,
+      ]);
+      return respond(null, 204);
+    }
     if (path === "blobs" && method === "GET") {
       const since = Number(url.searchParams.get("since") || 0),
         limit = Math.min(Number(url.searchParams.get("limit") || 500), 500);

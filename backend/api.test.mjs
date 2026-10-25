@@ -63,6 +63,17 @@ test(
       device: { device_id: randomUUID(), priority: 1 },
     });
     assert.equal(login.status, 200);
+    const otherSession = await login.json();
+    const devices = await (await request("devices", "GET", null, token)).json();
+    assert.equal(devices.devices.length, 2);
+    assert.equal(devices.devices.find((d) => d.device_id === device).current, true);
+    const otherDevice = devices.devices.find((d) => !d.current).device_id;
+    assert.equal((await request("devices/" + otherDevice, "DELETE", { auth_key: randomBytes(32).toString("base64url") }, token)).status, 401);
+    assert.equal((await request("devices/" + randomUUID(), "DELETE", { auth_key: auth.toString("base64url") }, token)).status, 404);
+    assert.equal((await request("devices/" + otherDevice, "DELETE", { auth_key: auth.toString("base64url") }, token)).status, 204);
+    assert.equal((await request("blobs", "GET", null, otherSession.token)).status, 401);
+    const revokedLogin = await request("sessions", "POST", { handle, auth_key: auth.toString("base64url"), device: { device_id: otherDevice, priority: 1 } });
+    assert.equal(revokedLogin.status, 401);
     const row = randomUUID(),
       envelope = Buffer.concat([
         Buffer.from([1, 0, 0, 0, 1]),

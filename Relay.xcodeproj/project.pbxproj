@@ -7,19 +7,27 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0378AFB9222EC10A53D65C19 /* CalendarDraftTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BCF405907D62ACF1EACA53 /* CalendarDraftTransfer.swift */; };
 		087C61BD8A2FF20699CD4C80 /* AgreementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */; };
 		36106F372C8FED63A9C7C24A /* MatrixConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */; };
 		364E7B0787A365B7F2AF79AB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D62FC39932391D1E796A62 /* SettingsView.swift */; };
 		4900F6EF78F8F5B2F3228ECA /* RelayKit in Frameworks */ = {isa = PBXBuildFile; productRef = BBCA5FD19EB45071473A3C7D /* RelayKit */; };
+		623214DDE984C252E558851D /* SettingsOverview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51D875E65B6F594CC18612E /* SettingsOverview.swift */; };
+		70CD4441EE9E9FA299872A20 /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1DAAEA2E18C5B8E3E774D7 /* ReminderScheduler.swift */; };
 		7404E148BA6ABB6072D8B1AC /* ConnectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C957A1DFC0B6415DA60C7B5D /* ConnectionsView.swift */; };
 		7698D79B7E1C97FD2FA58A29 /* RelayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A3B862AFB81916F41A0F928 /* RelayApp.swift */; };
+		8A27F79D92E69DF1699CFDD5 /* EventsHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7E3B750496CA06F209AF177 /* EventsHomeView.swift */; };
 		963C9D4CC221F73DC5D73357 /* AgreementDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */; };
 		9A4BB634D3E171AD7A825B65 /* RelayUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E7A997B5D969E134813EF8 /* RelayUITests.swift */; };
+		A920C5C124F4315597AE5E70 /* PeopleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE21C650BCE4CC475561ACFF /* PeopleView.swift */; };
 		B6C7119BB13672B616B2AD66 /* IMessageConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5842485F8F54AA84AA76A76D /* IMessageConnectView.swift */; };
 		C77823F2941F993CEC75CC9C /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E54D75C178A04FFA53DAA9 /* InboxView.swift */; };
 		D23A50F30C6DED207B3B9FE7 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635DE6AC84943DDDCC29E1AD /* RootView.swift */; };
+		DE7222E3823E5667E21FE692 /* RecapsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EBD94A81CAB1263757E4877 /* RecapsView.swift */; };
 		E229B5737F21A1D87C0073EC /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 563A7CF12A1A13FCB46097F8 /* Onboarding.swift */; };
+		E624B28C0B14F7D61F844DB4 /* MessagesHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE9BFFFB9416D2A77FA30364 /* MessagesHomeView.swift */; };
 		E6ABB0D4EA021B035E5C127C /* AgreementEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3346FDA187AAF769417D00F5 /* AgreementEditor.swift */; };
+		F6EBC4BEFC213643ADFC9036 /* ChatSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B710E2D51FDAF95F423A29 /* ChatSearchView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,8 +41,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0EBD94A81CAB1263757E4877 /* RecapsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecapsView.swift; sourceTree = "<group>"; };
 		12E54D75C178A04FFA53DAA9 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
+		16B710E2D51FDAF95F423A29 /* ChatSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSearchView.swift; sourceTree = "<group>"; };
 		3346FDA187AAF769417D00F5 /* AgreementEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgreementEditor.swift; sourceTree = "<group>"; };
+		4F1DAAEA2E18C5B8E3E774D7 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		563A7CF12A1A13FCB46097F8 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
 		5842485F8F54AA84AA76A76D /* IMessageConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IMessageConnectView.swift; sourceTree = "<group>"; };
 		5A3B862AFB81916F41A0F928 /* RelayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayApp.swift; sourceTree = "<group>"; };
@@ -43,9 +54,14 @@
 		8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatrixConnectView.swift; sourceTree = "<group>"; };
 		88EBB50D6387C066EBEE9162 /* RelayKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RelayKit; path = apple/RelayKit; sourceTree = SOURCE_ROOT; };
 		A3D62FC39932391D1E796A62 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A51D875E65B6F594CC18612E /* SettingsOverview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsOverview.swift; sourceTree = "<group>"; };
 		B2640FB004F58617990C7498 /* Relay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Relay.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgreementDetailView.swift; sourceTree = "<group>"; };
 		C957A1DFC0B6415DA60C7B5D /* ConnectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsView.swift; sourceTree = "<group>"; };
+		CE21C650BCE4CC475561ACFF /* PeopleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeopleView.swift; sourceTree = "<group>"; };
+		D7E3B750496CA06F209AF177 /* EventsHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsHomeView.swift; sourceTree = "<group>"; };
+		D8BCF405907D62ACF1EACA53 /* CalendarDraftTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDraftTransfer.swift; sourceTree = "<group>"; };
+		DE9BFFFB9416D2A77FA30364 /* MessagesHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesHomeView.swift; sourceTree = "<group>"; };
 		F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgreementListView.swift; sourceTree = "<group>"; };
 		F8E7A997B5D969E134813EF8 /* RelayUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -68,13 +84,21 @@
 				BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */,
 				3346FDA187AAF769417D00F5 /* AgreementEditor.swift */,
 				F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */,
+				D8BCF405907D62ACF1EACA53 /* CalendarDraftTransfer.swift */,
+				16B710E2D51FDAF95F423A29 /* ChatSearchView.swift */,
 				C957A1DFC0B6415DA60C7B5D /* ConnectionsView.swift */,
+				D7E3B750496CA06F209AF177 /* EventsHomeView.swift */,
 				5842485F8F54AA84AA76A76D /* IMessageConnectView.swift */,
 				12E54D75C178A04FFA53DAA9 /* InboxView.swift */,
 				8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */,
+				DE9BFFFB9416D2A77FA30364 /* MessagesHomeView.swift */,
 				563A7CF12A1A13FCB46097F8 /* Onboarding.swift */,
+				CE21C650BCE4CC475561ACFF /* PeopleView.swift */,
+				0EBD94A81CAB1263757E4877 /* RecapsView.swift */,
 				5A3B862AFB81916F41A0F928 /* RelayApp.swift */,
+				4F1DAAEA2E18C5B8E3E774D7 /* ReminderScheduler.swift */,
 				635DE6AC84943DDDCC29E1AD /* RootView.swift */,
+				A51D875E65B6F594CC18612E /* SettingsOverview.swift */,
 				A3D62FC39932391D1E796A62 /* SettingsView.swift */,
 			);
 			name = RelayApp;
@@ -214,13 +238,21 @@
 				963C9D4CC221F73DC5D73357 /* AgreementDetailView.swift in Sources */,
 				E6ABB0D4EA021B035E5C127C /* AgreementEditor.swift in Sources */,
 				087C61BD8A2FF20699CD4C80 /* AgreementListView.swift in Sources */,
+				0378AFB9222EC10A53D65C19 /* CalendarDraftTransfer.swift in Sources */,
+				F6EBC4BEFC213643ADFC9036 /* ChatSearchView.swift in Sources */,
 				7404E148BA6ABB6072D8B1AC /* ConnectionsView.swift in Sources */,
+				8A27F79D92E69DF1699CFDD5 /* EventsHomeView.swift in Sources */,
 				B6C7119BB13672B616B2AD66 /* IMessageConnectView.swift in Sources */,
 				C77823F2941F993CEC75CC9C /* InboxView.swift in Sources */,
 				36106F372C8FED63A9C7C24A /* MatrixConnectView.swift in Sources */,
+				E624B28C0B14F7D61F844DB4 /* MessagesHomeView.swift in Sources */,
 				E229B5737F21A1D87C0073EC /* Onboarding.swift in Sources */,
+				A920C5C124F4315597AE5E70 /* PeopleView.swift in Sources */,
+				DE7222E3823E5667E21FE692 /* RecapsView.swift in Sources */,
 				7698D79B7E1C97FD2FA58A29 /* RelayApp.swift in Sources */,
+				70CD4441EE9E9FA299872A20 /* ReminderScheduler.swift in Sources */,
 				D23A50F30C6DED207B3B9FE7 /* RootView.swift in Sources */,
+				623214DDE984C252E558851D /* SettingsOverview.swift in Sources */,
 				364E7B0787A365B7F2AF79AB /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

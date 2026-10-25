@@ -1,9 +1,10 @@
 import RelayKit
 import SwiftUI
 
-struct SettingsView: View {
+struct WorkspaceSettingsView: View {
   @EnvironmentObject var store: RelayStore
   @EnvironmentObject var model: ModelManager
+  @EnvironmentObject var reminders: ReminderScheduler
   @State private var account = false
   @State private var messages = false
   @State private var confirmSignOut = false
@@ -41,6 +42,13 @@ struct SettingsView: View {
         ).font(.caption).foregroundStyle(RelayTheme.muted)
       }
       ConnectionsView()
+      Section("Reminders") {
+        Button("Enable Due Reminders") { Task { _ = await reminders.enable(agreements: store.agreements) } }
+        Button("Turn Off Reminders") { Task { await reminders.disable() } }
+        if !reminders.status.isEmpty { Text(reminders.status).font(.caption).foregroundStyle(RelayTheme.muted) }
+        Text("Only accepted agreements with confirmed dates get reminders: 9 AM on the due date, or 15 minutes before a time. Notifications never show names, messages, or amounts.")
+          .font(.caption).foregroundStyle(RelayTheme.muted)
+      }
       Section("Processing") {
         Label(
           model.ready ? model.status : "Manual", systemImage: model.ready ? "cpu" : "hand.raised")

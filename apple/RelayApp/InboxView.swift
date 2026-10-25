@@ -1,147 +1,154 @@
 import RelayKit
 import SwiftUI
 
-struct InboxView: View {
-  @EnvironmentObject var store: RelayStore
+struct ConversationView: View {
+  @EnvironmentObject private var store: RelayStore
   var onCreate: (Agreement) -> Void
+  let roomID: String
   @State private var query = ""
-  @State private var connect = false
-  @State private var service: MessagingService?
-  var messages: [ChatMessage] {
-    store.messages.filter { m in
-      store.rooms.contains { $0.id == m.room_id && $0.opted_in }
-        && (service == nil || m.service == service
-          || (m.service == nil && m.network == service?.network))
-        && (query.isEmpty || m.text.localizedCaseInsensitiveContains(query)
-          || m.sender.display_name_snapshot.localizedCaseInsensitiveContains(query))
-    }.sorted { $0.ts > $1.ts }
+  @State private var highlighted: String?
+  @State private var draft = ""
+  @State private var transaction = UUID()
+  @State private var confirmSend = false
+  @State private var confirmDiscard = false
+  @FocusState private var composerFocused: Bool
+  private var room: ChatRoom? { store.rooms.first { $0.id == roomID && $0.opted_in } }
+  private var messages: [ChatMessage] {
+    guard room != nil else { return [] }
+    return store.messages.filter { $0.room_id == roomID && (query.isEmpty || (!$0.redacted && $0.text.localizedCaseInsensitiveContains(query))) }
+      .sorted { $0.ts == $1.ts ? $0.id < $1.id : $0.ts < $1.ts }
   }
   var body: some View {
     ScrollViewReader { proxy in
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 16) {
-          Picker("Service", selection: $service) {
-            Text("All Services").tag(nil as MessagingService?)
-            ForEach(MessagingService.allCases) { Text($0.name).tag($0 as MessagingService?) }
-          }.pickerStyle(.menu)
-
-          if store.isDemo {
-            Label("Sample Messages", systemImage: "play.rectangle").font(.caption.weight(.medium))
-              .foregroundStyle(RelayTheme.muted)
-          } else {
-            Label(store.matrixStatus, systemImage: "network").font(.caption).foregroundStyle(
-              RelayTheme.muted)
+          if let room {
+            Text("\(room.service?.name ?? room.network.label) · \(room.member_count) people")
+              .font(.subheadline).foregroundStyle(RelayTheme.muted)
           }
+          if store.isDemo { SourceBadge(title: "Sample conversation") }
           if messages.isEmpty {
-            ContentUnavailableView(
-              query.isEmpty ? "Your Chosen Chats" : "No Matching Messages", systemImage: "tray",
-              description: Text(
-                query.isEmpty
-                  ? "Connect your message server, then choose which chats Relay can read."
-                  : "Search uses only messages from chats you chose."))
-            Button("Connect Messages") { connect = true }.buttonStyle(.borderedProminent)
+            ContentUnavailableView(query.isEmpty ? "No Imported Messages" : "No Matching Messages", systemImage: "bubble.left.and.bubble.right", description: Text(room == nil ? "This chat is paused. Choose it again in Settings to include it." : "Only messages from this chosen chat are shown."))
           }
-          ForEach(messages) { m in
-            RelayPanel {
-              VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                  Avatar(name: m.sender.display_name_snapshot)
-                  VStack(alignment: .leading, spacing: 4) {
-                    Text(m.sender.display_name_snapshot).font(.headline)
-                    Text(
-                      "\(m.service?.name ?? m.network.label) · \(Date(timeIntervalSince1970:Double(m.ts)/1000).formatted(date:.abbreviated,time:.shortened))"
-                    ).font(.caption).foregroundStyle(RelayTheme.muted)
-                  }
-                  Spacer()
-                }
-                Text(m.redacted ? "Message deleted" : m.text).font(.body).textSelection(.enabled)
-                if let media = m.media {
-                  Label(
-                    media.name ?? m.kind.capitalized,
-                    systemImage: m.kind == "image" ? "photo" : "paperclip"
-                  ).font(.subheadline)
-                  if let size = media.size {
-                    Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)).font(
-                      .caption
-                    ).foregroundStyle(RelayTheme.muted)
-                  }
-                }
-                if m.kind == "unsupported" || m.kind == "encrypted" {
-                  Label(
-                    "This message type can be viewed in its source app.", systemImage: "info.circle"
-                  ).font(.caption).foregroundStyle(RelayTheme.muted)
-                }
-                if m.edited { StatusChip("Edited", symbol: "pencil") }
-                if m.kind == "text" && !m.redacted {
-                  Button("Create Agreement", systemImage: "plus") {
-                    onCreate(store.newFromMessage(m))
-                  }.font(.subheadline)
-                }
-              }
-            }.id(m.id).overlay(
-              RoundedRectangle(cornerRadius: 12).stroke(
-                store.highlightedMessageID == m.id ? RelayTheme.primary : .clear, lineWidth: 2))
-          }
-          Text("Read-only. Relay never sends messages to anyone.").font(.caption).foregroundStyle(
-            RelayTheme.muted
-          ).padding(.vertical, 12)
-        }.padding(16)
-      }.onAppear { if let id = store.highlightedMessageID { proxy.scrollTo(id, anchor: .center) } }
-        .onChange(of: store.highlightedMessageID) { _, id in
-          if let id { proxy.scrollTo(id, anchor: .center) }
-        }
-    }.background(RelayTheme.background).navigationTitle("Inbox").searchable(
-      text: $query, prompt: "Search Your Chosen Chats"
-    ).toolbar {
-      ToolbarItem(placement: .primaryAction) {
-        Button {
-          connect = true
-        } label: {
-          Label("Choose Chats", systemImage: "line.3.horizontal.decrease")
-        }
-      }
-    }.sheet(isPresented: $connect) { MatrixConnectView() }
-  }
-}
-struct PeopleView: View {
-  @EnvironmentObject var store: RelayStore
-  var onSelect: (UUID) -> Void
-  @State private var query = ""
-  var parties: [Party] {
-    Dictionary(
-      store.visible.flatMap(\.parties).filter { !$0.is_self }.map { ($0.id, $0) },
-      uniquingKeysWith: { first, _ in first }
-    ).values.filter {
-      query.isEmpty || $0.display_name_snapshot.localizedCaseInsensitiveContains(query)
-    }.sorted { $0.display_name_snapshot < $1.display_name_snapshot }
-  }
-  var body: some View {
-    List {
-      if parties.isEmpty {
-        ContentUnavailableView(
-          "People, with Context", systemImage: "person.2",
-          description: Text("The people in your agreements will appear here, grouped by network."))
-      }
-      ForEach(parties) { p in
-        Section {
-          ForEach(store.visible.filter { $0.parties.contains(where: { $0.id == p.id }) }) { a in
-            Button { onSelect(a.id) } label: {
-              VStack(alignment: .leading, spacing: 4) {
-                Text(a.title).font(.headline)
-                Text(a.lifecycle.label).font(.caption).foregroundStyle(RelayTheme.muted)
+          ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+            if index == 0 || !Calendar.current.isDate(timestamp(message), inSameDayAs: timestamp(messages[index - 1])) {
+              Text(timestamp(message).formatted(date: .abbreviated, time: .omitted)).font(.caption).foregroundStyle(RelayTheme.muted).padding(.top, 8)
+            }
+            bubble(message).id(message.id).contextMenu {
+              if message.kind == "text" && !message.redacted {
+                Button("Create Agreement", systemImage: "plus") { onCreate(store.newFromMessage(message)) }
+                Button("Copy Message", systemImage: "doc.on.doc") { PrivateClipboard.copy(message.text) }
               }
             }
           }
-        } header: {
-          HStack {
-            Avatar(name: p.display_name_snapshot)
-            VStack(alignment: .leading) {
-              Text(p.display_name_snapshot)
-              Text(p.network.label).font(.caption)
+          if let latest = messages.last(where: { !$0.sender.is_self && !$0.redacted }) {
+            Text("REPLY DRAFT · REVIEW BEFORE SENDING").font(.caption2.weight(.semibold)).foregroundStyle(RelayTheme.muted)
+            Button("Could you confirm the next step?") { draft = "Could you confirm the next step?" }.buttonStyle(.bordered)
+              .help("An editable template in response to \(latest.sender.display_name_snapshot). It does not make a commitment.")
+          }
+        }.padding(20).frame(maxWidth: 900, alignment: .leading).frame(maxWidth: .infinity)
+      }.onAppear { reveal(using: proxy) }
+        .onChange(of: store.highlightedMessageID) { _, _ in reveal(using: proxy) }
+        .onChange(of: messages.count) { _, _ in if let last = messages.last { proxy.scrollTo(last.id, anchor: .bottom) } }
+    }.background(RelayTheme.background).navigationTitle(room?.name ?? "Conversation")
+      .searchable(text: $query, prompt: "Search this conversation")
+      .safeAreaInset(edge: .bottom) { composer }
+      .sheet(isPresented: $confirmSend) { reviewSendView }
+      .onAppear {
+        if let pending = store.outgoing.last(where: { $0.room_id == roomID && $0.state != "sent" }) { draft = pending.body; transaction = pending.id }
+      }
+      .confirmationDialog("Discard This Draft?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+        Button("Discard Draft", role: .destructive) {
+          if store.discardOutgoing(transaction) { draft = ""; transaction = UUID() }
+        }
+      } message: { Text("A send that timed out may already have reached the conversation. Discarding does not unsend it.") }
+  }
+  private var reviewSendView: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 20) {
+          RelayPanel {
+            VStack(alignment: .leading, spacing: 10) {
+              Label("Suggested, never automatic", systemImage: "sparkles").font(.headline)
+              Text(store.isDemo ? "This adds a fictional message to the sample workspace. Nothing will be sent externally." : "Review this draft before sending. It will be sent through \(room?.service?.name ?? room?.network.label ?? "your connected app").")
+                .font(.subheadline).foregroundStyle(RelayTheme.muted)
             }
           }
+          RelayPanel {
+            VStack(alignment: .leading, spacing: 12) {
+              Text(draft).font(.title3).textSelection(.enabled)
+              Text("To: \(room?.name ?? "Conversation")").font(.caption).foregroundStyle(RelayTheme.muted)
+            }
+          }
+          Button(store.isDemo ? "Add Sample Message" : "Send Message") {
+            Task {
+              if await store.sendMessage(draft, room: roomID, transactionID: transaction) {
+                confirmSend = false; draft = ""; transaction = UUID()
+              }
+            }
+          }.buttonStyle(.borderedProminent).controlSize(.large).disabled(store.sendingMessage)
+          Button("Keep Editing") { confirmSend = false }.buttonStyle(.bordered).controlSize(.large).disabled(store.sendingMessage)
+          if store.sendingMessage { ProgressView("Sending…") }
+        }.padding(20)
+      }.background(RelayTheme.background).navigationTitle("Review Your Reply")
+        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { confirmSend = false }.disabled(store.sendingMessage) } }
+    }.interactiveDismissDisabled(store.sendingMessage).presentationDetents([.large])
+    #if os(macOS)
+    .frame(minWidth: 500, minHeight: 500)
+    #endif
+  }
+  private var composer: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      TextField("Message via \(room?.service?.name ?? room?.network.label ?? "connected app")…", text: $draft, axis: .vertical)
+        .lineLimit(1...5).textFieldStyle(.roundedBorder).accessibilityIdentifier("message-composer").focused($composerFocused).disabled(store.sendingMessage || store.outgoing.contains(where: { $0.id == transaction && $0.state != "sent" }))
+      HStack {
+        Button("Copy Draft", systemImage: "doc.on.doc") { PrivateClipboard.copy(draft); store.toast = "Draft copied for two minutes" }.disabled(draft.isEmpty)
+        Spacer()
+        if store.outgoing.contains(where: { $0.id == transaction && $0.state != "sent" }) {
+          Button("Discard") { confirmDiscard = true }.disabled(store.sendingMessage)
         }
+        Button(store.sendingMessage ? "Sending…" : "Review Send", systemImage: "paperplane") { composerFocused = false; confirmSend = true }
+          .buttonStyle(.borderedProminent).disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draft.utf8.count > 16_000 || store.sendingMessage || room?.encrypted == true || (!store.isDemo && roomID.hasPrefix("imessage:")))
+      }.font(.subheadline)
+      if !store.isDemo && roomID.hasPrefix("imessage:") { Text("This Mac connection reads iMessage. Copy your draft into Messages to send it.").font(.caption).foregroundStyle(RelayTheme.muted) }
+      if let pending = store.outgoing.first(where: { $0.id == transaction }), let error = pending.error {
+        Text("Delivery not confirmed: \(error) Retry preserves the same send identity.").font(.caption).foregroundStyle(RelayTheme.warning)
       }
-    }.navigationTitle("People").searchable(text: $query, prompt: "Find a Person")
+    }.padding(16).background(.regularMaterial)
+  }
+  private func timestamp(_ message: ChatMessage) -> Date { Date(timeIntervalSince1970: Double(message.ts) / 1000) }
+  private func reveal(using proxy: ScrollViewProxy) {
+    guard let target = store.highlightedMessageID, messages.contains(where: { $0.id == target }) else { return }
+    highlighted = target
+    proxy.scrollTo(target, anchor: .center)
+    store.highlightedMessageID = nil
+  }
+  private func bubble(_ message: ChatMessage) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack {
+        Text(message.sender.display_name_snapshot).font(.caption.weight(.semibold)).foregroundStyle(RelayTheme.accentText)
+        Spacer()
+        Text(timestamp(message).formatted(date: .omitted, time: .shortened)).font(.caption2).foregroundStyle(RelayTheme.muted)
+      }
+      if let reply = message.reply_to_event_id {
+        let original = store.messages.first { $0.room_id == roomID && $0.event_id == reply && !$0.redacted }
+        Text(original.map { "Reply to \($0.sender.display_name_snapshot): \($0.text)" } ?? "Reply · Original message unavailable")
+          .font(.caption).foregroundStyle(RelayTheme.muted).lineLimit(2)
+      }
+      Text(message.redacted ? "Message deleted" : message.text).font(.body).textSelection(.enabled)
+      if !message.redacted, let media = message.media {
+        Label(media.name ?? message.kind.capitalized, systemImage: message.kind == "image" ? "photo" : "paperclip").font(.subheadline)
+        if let size = media.size { Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)).font(.caption).foregroundStyle(RelayTheme.muted) }
+      }
+      if message.kind == "unsupported" || message.kind == "encrypted" {
+        Label("View this message in its source app.", systemImage: "info.circle").font(.caption).foregroundStyle(RelayTheme.muted)
+      }
+      if message.edited { SourceBadge(title: "Edited") }
+      if !message.redacted && message.kind == "text" {
+        Button("Create Agreement", systemImage: "plus") { onCreate(store.newFromMessage(message)) }.font(.caption)
+      }
+    }.padding(14).frame(maxWidth: message.sender.is_self ? 580 : 650, alignment: .leading)
+      .background(message.sender.is_self ? RelayTheme.selection : RelayTheme.surface, in: RoundedRectangle(cornerRadius: 16))
+      .overlay(RoundedRectangle(cornerRadius: 16).stroke(highlighted == message.id ? RelayTheme.accentText : .clear, lineWidth: 2))
   }
 }

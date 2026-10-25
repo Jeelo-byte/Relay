@@ -86,6 +86,9 @@ import SwiftUI
         status: 0, code: "simulator", message: "Local model inference requires a physical device.",
         current: nil)
     #else
+      guard inference == nil else {
+        throw APIError(status: 0, code: "model_busy", message: "Relay is already processing a conversation. Try again when it finishes.", current: nil)
+      }
       guard let container, ready else {
         throw APIError(
           status: 0, code: "model_unavailable",

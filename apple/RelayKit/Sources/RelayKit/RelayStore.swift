@@ -4,8 +4,13 @@ import SwiftUI
 
 @MainActor public final class RelayStore: ObservableObject {
   @Published public var agreements: [Agreement] = []
+  @Published public private(set) var recaps: [ConversationRecap] = []
+  @Published public private(set) var generatingRecap = false
   @Published public var messages: [ChatMessage] = []
+  @Published public private(set) var outgoing: [OutgoingMessage] = []
+  @Published public private(set) var sendingMessage = false
   @Published public var rooms: [ChatRoom] = []
+  @Published public private(set) var personNotes: [String: String] = [:]
   @Published public var session: AccountSession?
   @Published public var isDemo = false
   @Published public var started = false
@@ -17,16 +22,19 @@ import SwiftUI
   @Published public var syncIssues = 0
   @Published public var processing = false
   @Published public var highlightedMessageID: String?
+  @Published public var highlightedRoomID: String?
   @Published public var matrixStatus = "Not Connected"
   @Published public var imessageStatus = "Not Connected"
   @Published public var imessageError: String?
   private var imessageSyncing = false
   private var matrixSyncing = false
-  public let deviceID: UUID
+  public private(set) var deviceID: UUID
   private var local: LocalStore?
   private var syncTask: Task<Void, Never>?
   private let chatRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
   private let roomsRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
+  private let notesRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000003")!
+  private let outgoingRecord = UUID(uuidString: "00000000-0000-4000-8000-000000000004")!
   public init(localStore: LocalStore? = nil, restoreSession: Bool = true) {
     deviceID =
       UUID(uuidString: UserDefaults.standard.string(forKey: "relay.device") ?? "") ?? UUID()
@@ -46,11 +54,15 @@ import SwiftUI
       #else
         local = try localStore ?? LocalStore()
       #endif
-      for id in try local!.ids() where id != chatRecord && id != roomsRecord {
-        if let a = try local!.load(Agreement.self, id: id) { agreements.append(a) }
+      for id in try local!.ids() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord {
+        if let header = try local!.load(RecordHeader.self, id: id), header.schema == "relay.recap/1" {
+          if let recap = try local!.load(ConversationRecap.self, id: id) { recaps.append(recap) }
+        } else if let a = try local!.load(Agreement.self, id: id) { agreements.append(a) }
       }
       messages = try local!.load([ChatMessage].self, id: chatRecord) ?? []
       rooms = try local!.load([ChatRoom].self, id: roomsRecord) ?? []
+      personNotes = try local!.load([String: String].self, id: notesRecord) ?? [:]
+      outgoing = try local!.load([OutgoingMessage].self, id: outgoingRecord) ?? []
       isDemo = (try local!.meta("demo")) == "true"
       started = (try local!.meta("started")) == "true"
       if restoreSession, ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil,
@@ -66,11 +78,16 @@ import SwiftUI
   public var visible: [Agreement] { agreements.filter { $0.review_state != .dismissed } }
   public var dismissed: [Agreement] { agreements.filter { $0.review_state == .dismissed } }
   public var pendingCount: Int {
-    (try? local?.dirtyIDs().filter { $0 != chatRecord && $0 != roomsRecord }.count) ?? 0
+    (try? local?.dirtyIDs().filter { $0 != chatRecord && $0 != roomsRecord && $0 != notesRecord && $0 != outgoingRecord }.count) ?? 0
   }
   public func beginManual() {
     started = true
     try? local?.setMeta("started", value: "true")
+  }
+  public func resetDeviceIdentity() {
+    guard session == nil else { return }
+    deviceID = UUID()
+    UserDefaults.standard.set(deviceID.uuidString, forKey: "relay.device")
   }
   public func loadDemo() {
     guard session == nil, agreements.isEmpty else {
@@ -88,6 +105,10 @@ import SwiftUI
   }
   @discardableResult public func save(_ a: Agreement) -> Bool {
     var value = a
+    if !value.source_room_ids.isEmpty {
+      let snapshots = value.source_room_ids.map { id in rooms.first(where: { $0.id == id })?.name }
+      if snapshots.allSatisfy({ $0 != nil }) { value.source_room_names = snapshots.compactMap { $0 } }
+    }
     value.updated_at = Clock.ms
     do {
       guard let local else { throw VaultError.locked }
@@ -204,8 +225,14 @@ import SwiftUI
     if isDemo {
       for a in agreements { try local?.remove(a.id) }
       agreements = []
+      for recap in recaps { try local?.remove(recap.id) }
+      recaps = []
       messages = []
       rooms = []
+      personNotes = [:]
+      outgoing = []
+      try local?.remove(outgoingRecord)
+      try local?.remove(notesRecord)
       isDemo = false
       try local?.setMeta("demo", value: "false")
       cacheChats()
@@ -213,8 +240,11 @@ import SwiftUI
     if let previous = session, previous.account_id != newSession.account_id {
       for id in (try? local?.ids()) ?? [] { try local?.remove(id) }
       agreements = []
+      recaps = []
       messages = []
       rooms = []
+      personNotes = [:]
+      outgoing = []
       KeychainStore.delete("matrix-session")
       cacheChats()
     }
@@ -270,8 +300,11 @@ import SwiftUI
     KeychainStore.delete("account-session")
     KeychainStore.delete("ui-biometric-gate")
     agreements = []
+    recaps = []
     messages = []
     rooms = []
+    personNotes = [:]
+    outgoing = []
     locked = false
     started = false
     syncStatus = "On This Device"
@@ -282,7 +315,19 @@ import SwiftUI
     do {
       try local?.save(messages, id: chatRecord, dirty: false)
       try local?.save(rooms, id: roomsRecord, dirty: false)
+      rebuildRecaps()
     } catch { self.error = error.localizedDescription }
+  }
+  @discardableResult public func savePersonNote(_ note: String, party: String) -> Bool {
+    guard !locked, let local else { error = VaultError.locked.localizedDescription; return false }
+    var updated = personNotes
+    if note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { updated.removeValue(forKey: party) }
+    else { updated[party] = note }
+    do {
+      try local.save(updated, id: notesRecord, dirty: false)
+      personNotes = updated
+      return true
+    } catch { self.error = error.localizedDescription; return false }
   }
   public func setOptIn(_ id: String, _ opted: Bool) {
     if let i = rooms.firstIndex(where: { $0.id == id }) {
@@ -316,7 +361,12 @@ import SwiftUI
     defer { syncing = false }
     let api = APIClient(baseURL: s.baseURL, token: s.token)
     do {
-      for id in try local.dirtyIDs() where id != chatRecord && id != roomsRecord {
+      for id in try local.dirtyIDs() where id != chatRecord && id != roomsRecord && id != notesRecord && id != outgoingRecord {
+        if let recap = recaps.first(where: { $0.id == id }) {
+          try await syncRecap(recap, session: s, local: local, api: api)
+          guard session?.account_id == s.account_id, !locked else { return }
+          continue
+        }
         guard let a = agreements.first(where: { $0.id == id }) else { continue }
         let base = try local.version(id)
         do {
@@ -365,6 +415,7 @@ import SwiftUI
             try local.synced(row.row_id, version: row.version)
             try local.remove(row.row_id)
             agreements.removeAll { $0.id == row.row_id }
+            recaps.removeAll { $0.id == row.row_id }
             continue
           }
           do {
@@ -374,6 +425,13 @@ import SwiftUI
             let plain = try RelayCrypto.open(
               data, dek: s.dek, account: s.account_id, row: row.row_id, version: row.version,
               keyVersion: row.key_version)
+            if try JSONDecoder().decode(RecordHeader.self, from: plain).schema == "relay.recap/1" {
+              let recap = try JSONDecoder().decode(ConversationRecap.self, from: plain)
+              guard recap.id == row.row_id else { throw VaultError.invalidEnvelope }
+              try local.save(recap, id: recap.id, dirty: false, serverVersion: row.version)
+              if let i = recaps.firstIndex(where: { $0.id == recap.id }) { recaps[i] = recap } else { recaps.append(recap) }
+              continue
+            }
             let a = try JSONDecoder().decode(Agreement.self, from: plain)
             guard a.id == row.row_id, a.schema == "relay.agreement/1" else {
               throw VaultError.unsupportedVersion
@@ -531,6 +589,13 @@ extension RelayStore {
       a.flags.source_changed = true
       a.timeline.append(TimelineEvent(deleted ? "source_deleted" : "source_edited", actor: "ai"))
       save(a)
+    }
+    for var recap in recaps where recap.evidence.contains(where: { $0.room_id == room && $0.event_id == event }) {
+      recap.source_changed = true; recap.updated_at = Clock.ms
+      for i in recap.evidence.indices where recap.evidence[i].event_id == event {
+        recap.evidence[i].source_state = deleted ? "deleted" : "edited"
+      }
+      saveRecap(recap)
     }
   }
 }
@@ -735,3 +800,145 @@ extension RelayStore {
   }
 }
 #endif
+
+private struct RecordHeader: Decodable { var schema: String }
+extension RelayStore {
+  public func rebuildRecaps() {
+    guard !locked else { return }
+    for var recap in RecapEngine.highlights(messages: messages, rooms: rooms) {
+      if let previous = recaps.first(where: { $0.room_id == recap.room_id && $0.day == recap.day }) {
+        if previous.source_fingerprint == recap.source_fingerprint && previous.room_name == recap.room_name { continue }
+        recap.id = previous.id; recap.created_at = previous.created_at
+      }
+      saveRecap(recap)
+    }
+  }
+  @discardableResult public func saveRecap(_ recap: ConversationRecap) -> Bool {
+    guard !locked, let local else { return false }
+    do {
+      try local.save(recap, id: recap.id)
+      if let index = recaps.firstIndex(where: { $0.id == recap.id }) { recaps[index] = recap }
+      else { recaps.append(recap) }
+      scheduleSync()
+      return true
+    } catch { self.error = error.localizedDescription; return false }
+  }
+  public func generateRecap(_ id: UUID, using model: ModelManager) async {
+    guard !locked, !generatingRecap, !processing,
+      let recap = recaps.first(where: { $0.id == id }),
+      rooms.contains(where: { $0.id == recap.room_id && $0.opted_in }) else { return }
+    let account = session?.account_id
+    let source = messages
+    generatingRecap = true
+    defer { generatingRecap = false }
+    do {
+      let prompt = try RecapEngine.prompt(for: recap, messages: source)
+      let output = try await model.generate(prompt)
+      guard !locked, session?.account_id == account,
+        rooms.contains(where: { $0.id == recap.room_id && $0.opted_in }),
+        recaps.first(where: { $0.id == id })?.source_fingerprint == recap.source_fingerprint else { return }
+      let updated = try RecapEngine.apply(output, to: recap, messages: source)
+      if saveRecap(updated) { toast = "Recap generated on this device" }
+    } catch is CancellationError {} catch { self.error = "The recap could not be verified. Original quoted highlights are still available. \(error.localizedDescription)" }
+  }
+  private func syncRecap(_ recap: ConversationRecap, session s: AccountSession, local: LocalStore, api: APIClient) async throws {
+    let base = try local.version(recap.id)
+    do {
+      let result = try await api.putRecord(recap, id: recap.id, session: s, base: base)
+      guard session?.account_id == s.account_id, !locked else { return }
+      if let current = recaps.first(where: { $0.id == recap.id }), current != recap {
+        try local.save(current, id: recap.id, dirty: true, serverVersion: result.version)
+      } else { try local.synced(recap.id, version: result.version) }
+    } catch let error as APIError where error.status == 409 {
+      guard session?.account_id == s.account_id, !locked, let remote = error.current else { throw error }
+      if remote.deleted {
+        try local.synced(recap.id, version: remote.version); try local.remove(recap.id)
+        recaps.removeAll { $0.id == recap.id }; return
+      }
+      guard let text = remote.envelope, let envelope = Data(base64URL: text) else { throw VaultError.invalidEnvelope }
+      let plain = try RelayCrypto.open(envelope, dek: s.dek, account: s.account_id, row: recap.id, version: remote.version, keyVersion: remote.key_version)
+      let server = try JSONDecoder().decode(ConversationRecap.self, from: plain)
+      guard server.id == recap.id, server.schema == "relay.recap/1" else { throw VaultError.invalidEnvelope }
+      if let current = recaps.first(where: { $0.id == recap.id }), current != recap {
+        try local.save(current, id: recap.id, dirty: true, serverVersion: remote.version)
+      } else {
+        try local.save(server, id: server.id, dirty: false, serverVersion: remote.version)
+        if let index = recaps.firstIndex(where: { $0.id == server.id }) { recaps[index] = server }
+      }
+    }
+  }
+}
+
+extension RelayStore {
+  @discardableResult public func sendMessage(_ text: String, room id: String, transactionID: UUID) async -> Bool {
+    guard !locked, !sendingMessage, let local,
+      let room = rooms.first(where: { $0.id == id && $0.opted_in }),
+      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.utf8.count <= 16_000 else { return false }
+    if let previous = outgoing.first(where: { $0.id == transactionID }) {
+      guard previous.room_id == id, previous.body == text else { error = "Retry the original draft, or start a new draft."; return false }
+      if previous.state == "sent" { return true }
+    }
+    if !isDemo && room.id.hasPrefix("imessage:") {
+      error = "This iMessage connection currently reads through your Mac. Copy the draft into Messages to send it."
+      return false
+    }
+    let account = session?.account_id
+    var message = OutgoingMessage(id: transactionID, room: id, body: text)
+    if let prior = outgoing.first(where: { $0.id == transactionID }) { message.created_at = prior.created_at }
+    do {
+      var updated = outgoing.filter { $0.id != transactionID && $0.state != "sent" }; updated.append(message)
+      guard try JSONEncoder().encode(updated).count <= 60_000 else {
+        self.error = "Several drafts are waiting for delivery. Retry or discard those before sending another."; return false
+      }
+      try local.save(updated, id: outgoingRecord, dirty: false)
+      outgoing = updated
+    } catch { self.error = error.localizedDescription; return false }
+    sendingMessage = true
+    defer { sendingMessage = false }
+    do {
+      let event: String
+      if isDemo { event = "$sample-" + transactionID.uuidString }
+      else {
+        guard let data = try KeychainStore.read("matrix-session") else { throw VaultError.locked }
+        let matrix = try JSONDecoder().decode(MatrixSession.self, from: data)
+        event = try await MatrixClient(session: matrix).send(room: room, text: text, transactionID: transactionID) { [weak self] in
+          guard let self else { return false }
+          return !self.locked && self.session?.account_id == account
+            && self.rooms.contains(where: { $0.id == id && $0.opted_in })
+            && (try? KeychainStore.read("matrix-session")) == data
+        }
+      }
+      guard !locked, session?.account_id == account else { return false }
+      if !messages.contains(where: { $0.room_id == id && $0.event_id == event }) {
+        var chat = ChatMessage(room: id, event: event, sender: .me, text: text, network: room.network)
+        chat.service = room.service; messages.append(chat); cacheChats()
+      }
+      if let index = outgoing.firstIndex(where: { $0.id == transactionID }) {
+        outgoing[index].state = "sent"; outgoing[index].event_id = event; outgoing[index].error = nil
+      }
+      try local.save(outgoing, id: outgoingRecord, dirty: false)
+      toast = isDemo ? "Sample message added · Nothing sent externally" : "Message sent to \(room.name)"
+      return true
+    } catch {
+      guard !locked, session?.account_id == account else { return false }
+      if let index = outgoing.firstIndex(where: { $0.id == transactionID }) {
+        outgoing[index].state = "failed"; outgoing[index].error = error.localizedDescription
+      }
+      try? local.save(outgoing, id: outgoingRecord, dirty: false)
+      self.error = "Delivery was not confirmed. Retry this draft to check the same send request. \(error.localizedDescription)"
+      return false
+    }
+  }
+}
+
+extension RelayStore {
+  @discardableResult public func discardOutgoing(_ id: UUID) -> Bool {
+    guard !locked, !sendingMessage, let local else { return false }
+    let updated = outgoing.filter { $0.id != id }
+    do {
+      try local.save(updated, id: outgoingRecord, dirty: false)
+      outgoing = updated
+      return true
+    } catch { self.error = error.localizedDescription; return false }
+  }
+}

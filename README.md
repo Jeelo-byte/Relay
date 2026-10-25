@@ -1,23 +1,36 @@
 # Relay
 
-A SwiftUI agreement tracker for iOS, iPadOS and macOS. Relay turns commitments into reviewable agreements with source evidence. You decide what to accept, edit, dismiss and complete.
+Relay keeps the commitments that show up in your chats: who promised what, what is still open, and the message it came from. It is a shared-understanding tracker for iOS, iPadOS, macOS, and the web. An agreement here is not a legal contract and not legal advice.
+
+On iPhone the app opens into five places, in this order: **People**, **Events**, **Recaps**, **Messages**, and **Settings**. iPad and Mac use the same destinations in a sidebar. The web client follows the same structure.
+
+## What each place does
+
+- **Recaps** groups a day of chats into cards you can filter by conversation and app. Optional local generation cites the source text. Sample photos open in a collage.
+- **Events** is where money, borrowed things, and the week’s plans live. You create, edit, dismiss, restore, and complete agreements yourself. Recurring items wait for you to accept the next occurrence.
+- **Messages** brings chosen conversations together. Search stays on the device. Suggested replies are editable. Sending asks for confirmation, checks room encryption and consent, and records an encrypted outbox. iMessage on Mac stays read-only: Relay can copy a reply, not send it.
+- **People** is a contact-style directory of shared money, items, plans, and private notes. Notes are encrypted on the device and are not synced yet.
+- **Settings** covers the workspace, connections, reminders, devices, and help. Due reminders stay private. Calendar drafts can be exported.
+
+Full chat text stays on the device and the local Matrix server. Neon stores authenticated ciphertext for derived records and short source excerpts.
+
+The visual source for this pass is the [final product design](https://www.figma.com/design/10XdD87FnyxKWFoeF0zogy/Relay). What is implemented, what was verified, and what is still open is recorded in [docs/FINAL-DESIGN.md](docs/FINAL-DESIGN.md).
 
 ## Development
 
-- `swift build` builds the shared library and macOS executable.
+- `swift build` builds the shared library and the macOS executable.
 - `swift test` runs the shared Swift tests.
 - `npm install && npm run normalize` rebuilds the TypeScript normalizer for JavaScriptCore.
 - `npm run dev` runs the Next.js backend and web client.
-- The backend requires `DATABASE_URL` and `PRELOGIN_HMAC_SECRET` in a local, ignored environment file. Never put database credentials in an Apple target.
+- `npm test` runs the Node tests.
+- `npm run build` builds the web client for production.
+
+The backend needs `DATABASE_URL` and `PRELOGIN_HMAC_SECRET` in a local, ignored environment file. Never put database credentials in an Apple target.
 
 ## Current checkpoint
 
-The shared data model, design tokens, encrypted SQLite persistence, account key derivation, API client, and Neon development schema are implemented. Native screens and integration verification are in progress. This checkpoint is not a finished demo.
-
-See [implementation decisions](docs/DECISIONS.md) for explicit scope and integration limits. The supplied build plan is preserved in [docs/BuildPlan-v5.txt](docs/BuildPlan-v5.txt).
-
-Agreements are a shared-understanding view, not a legal contract or legal advice.
+Native and web surfaces for the five destinations are in the tree, including recurrence review, reminder planning, calendar draft export, device listing, and passphrase-based device revocation. This is still a working checkpoint. Open work includes full web Matrix conversations and sending, carrying iMessage from the Mac to other devices, live photo handling, synced person notes, account recovery and key rotation, and the remaining accessibility and device checks. See [implementation decisions](docs/DECISIONS.md) and the [feature checklist](docs/FEATURES.md). The original build plan is in [docs/BuildPlan-v5.txt](docs/BuildPlan-v5.txt).
 
 ## iMessage on Mac
 
-Relay can read new text from chosen Messages conversations on the Mac after Full Disk Access is granted. Open Inbox → Choose Chats → iMessage to connect. See [iMessage setup and limits](docs/IMESSAGE.md).
+After Full Disk Access is granted, Relay can read new text from conversations you choose in Messages. Open **Messages → Choose Chats → iMessage**. History before you enable a chat is not imported, and Relay does not send iMessages. Details and limits are in [docs/IMESSAGE.md](docs/IMESSAGE.md).

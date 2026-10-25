@@ -1,5 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import EventsWorkspace, { Icon, formatDue, initials } from "./EventsWorkspace";
+import { makeDemo } from "../lib/demo";
+import { PeopleWorkspace, SourceMessages, WebSettings } from "./WorkspacePanels";
+import RecapsWorkspace, { demoRecaps } from "./RecapsWorkspace";
 import {
   derive,
   unwrap,
@@ -15,28 +19,26 @@ const money = (m) =>
         currency: m.currency,
       }).format(m.minor / 10 ** m.exponent)
     : "Not stated";
-const date = (d) =>
-  d?.date
-    ? new Date(d.date + "T12:00:00").toLocaleDateString(undefined, {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      })
-    : "Not stated";
+const date = formatDue;
 export default function Relay() {
   const [session, setSession] = useState(null),
     [handle, setHandle] = useState(""),
     [pass, setPass] = useState(""),
     [items, setItems] = useState([]),
+    [recaps, setRecaps] = useState([]),
     [selected, setSelected] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("All"),
-    [status, setStatus] = useState("Locked");
+    [status, setStatus] = useState("Locked"),
+    [destination, setDestination] = useState("Recaps"),
+    [browse, setBrowse] = useState(false);
   const versions = useRef(new Map()),
     since = useRef(0),
-    pulling = useRef(false);
+    pulling = useRef(false),
+    epoch = useRef(0),
+    detailDialog = useRef(null);
   async function api(
     path,
     body,
@@ -98,7 +100,8 @@ export default function Relay() {
     }
   }
   async function pull(s = session) {
-    if (!s || pulling.current) return;
+    if (!s || s.demo || pulling.current) return;
+    const generation = epoch.current;
     pulling.current = true;
     setStatus("Syncing…");
     try {
@@ -110,6 +113,7 @@ export default function Relay() {
           "GET",
           s.token,
         );
+        if (generation !== epoch.current) return;
         const changes = [];
         for (const row of result.items) {
           if (row.version <= (versions.current.get(row.row_id) || 0)) continue;
@@ -119,7 +123,9 @@ export default function Relay() {
             continue;
           }
           try {
-            changes.push(await openBlob(row, s.dek, s.account_id));
+            const value = await openBlob(row, s.dek, s.account_id);
+            if (generation !== epoch.current) return;
+            changes.push(value);
             versions.current.set(row.row_id, row.version);
           } catch {
             setError(
@@ -131,25 +137,41 @@ export default function Relay() {
           const map = new Map(old.map((a) => [a.id.toLowerCase(), a]));
           for (const a of changes) {
             if (a.deleted) map.delete(a.id);
-            else map.set(a.id.toLowerCase(), a);
+            else if (a.schema === "relay.agreement/1") map.set(a.id.toLowerCase(), a);
+          }
+          return [...map.values()];
+        });
+        setRecaps((old) => {
+          const map = new Map(old.map((r) => [r.id.toLowerCase(), r]));
+          for (const r of changes) {
+            if (r.deleted) map.delete(r.id.toLowerCase());
+            else if (r.schema === "relay.recap/1") map.set(r.id.toLowerCase(), r);
           }
           return [...map.values()];
         });
         since.current = result.next_since;
         more = result.has_more;
       }
-      setStatus("Synced");
+      if (generation === epoch.current) setStatus("Synced");
     } catch (e) {
+      if (generation !== epoch.current) return;
       setStatus("Not Synced");
       setError(e.message);
     } finally {
-      pulling.current = false;
+      if (generation === epoch.current) pulling.current = false;
     }
   }
   function lock() {
+    epoch.current += 1;
+    pulling.current = false;
+    setQuery("");
+    setFilter("All");
+    setDestination("Events");
+    setBrowse(false);
     if (session?.dek) session.dek.fill(0);
     setSession(null);
     setItems([]);
+    setRecaps([]);
     setSelected(null);
     versions.current = new Map();
     since.current = 0;
@@ -157,7 +179,7 @@ export default function Relay() {
     setError("");
   }
   useEffect(() => {
-    if (!session) return;
+    if (!session || session.demo) return;
     const timer = setInterval(() => pull(session), 30000);
     const focus = () => pull(session);
     window.addEventListener("focus", focus);
@@ -167,6 +189,8 @@ export default function Relay() {
     };
   }, [session]);
   async function change(a, kind) {
+    const currentSession = session, generation = epoch.current;
+    if (!currentSession) return;
     setBusy(true);
     setError("");
     try {
@@ -192,26 +216,34 @@ export default function Relay() {
         evidence_id: null,
         pending: false,
       });
+      if (currentSession.demo) {
+        setItems((old) => old.map((x) => x.id === a.id ? value : x));
+        return;
+      }
       const base = versions.current.get(a.id.toLowerCase()) || 0,
         envelope = await sealBlob(
           value,
-          session.dek,
-          session.account_id,
+          currentSession.dek,
+          currentSession.account_id,
           base + 1,
         );
+      if (generation !== epoch.current) return;
       const result = await api(
         "blobs/" + a.id.toLowerCase(),
         { base_version: base, key_version: 1, envelope },
         "PUT",
+        currentSession.token,
       );
+      if (generation !== epoch.current) return;
       versions.current.set(a.id.toLowerCase(), result.version);
       setItems((old) => old.map((x) => (x.id === a.id ? value : x)));
       setStatus("Synced");
     } catch (e) {
+      if (generation !== epoch.current) return;
       setError(e.message);
-      await pull();
+      await pull(currentSession);
     } finally {
-      setBusy(false);
+      if (generation === epoch.current) setBusy(false);
     }
   }
   const visible = items
@@ -229,15 +261,26 @@ export default function Relay() {
     .filter(
       (a) =>
         filter === "All" ||
+        (filter === "Money" && a.kind === "payment") ||
+        (filter === "Items" && a.kind === "item") ||
         (filter === "Suggested"
           ? a.review_state === "suggested"
-          : a.lifecycle === "fulfilled"),
+          : filter === "Done" && a.lifecycle === "fulfilled"),
     );
   const active = items.find((a) => a.id === selected);
+  useEffect(() => {
+    if (active && detailDialog.current && !detailDialog.current.open) detailDialog.current.showModal();
+    if (!active && detailDialog.current?.open) detailDialog.current.close();
+  }, [active]);
+  const navigate = (name) => { setDestination(name); setSelected(null); setQuery(""); setFilter("All"); setBrowse(false); };
+  const openBrowse = (nextFilter) => { setFilter(nextFilter); setBrowse(true); };
+  const destinations = ["Recaps", "Events", "Messages", "People", "Settings"];
+  const navigation = (mobile = false) => <nav className={mobile ? "mobile-navigation" : "primary-navigation"} aria-label={mobile ? "Mobile navigation" : "Primary navigation"}>{destinations.map((name) => <button key={name} onClick={() => navigate(name)} aria-current={destination === name ? "page" : undefined}><Icon name={name.toLowerCase()} /><span>{name}</span></button>)}</nav>;
+
   if (!session)
     return (
       <main className="welcome">
-        <div className="brand">▣ Relay</div>
+        <div className="brand"><Icon name="logo" /> Relay</div>
         <h1>
           Every promise.
           <br />A little clearer.
@@ -275,6 +318,7 @@ export default function Relay() {
             {busy ? "Unlocking…" : "Unlock Agreements"}
           </button>
         </form>
+        <button className="sample-button" disabled={busy} onClick={() => { const demo = makeDemo(); setSession({ demo: true, handle: "Sample workspace" }); setItems(demo); setRecaps(demoRecaps(demo)); setDestination("Recaps"); setStatus("Sample workspace"); }}>Explore Sample Workspace</button>
         <small>
           Create an account in the Relay native app first.
           <br />
@@ -285,21 +329,23 @@ export default function Relay() {
   return (
     <div className="shell">
       <aside>
-        <div className="brand">▣ Relay</div>
-        <nav>
-          <strong>Agreements</strong>
-        </nav>
-        <div className="asideBottom">
-          <p>Encrypted sync</p>
-          <small>
-            {session.handle} · {status}
-          </small>
-          <button onClick={lock}>Lock Relay</button>
-        </div>
+        <div className="brand"><Icon name="logo" /> Relay</div>
+        <input aria-label="Search Relay" placeholder="Search Relay" value={query} onChange={(e) => { setQuery(e.target.value); setDestination("Events"); setBrowse(true); }} />
+        {navigation()}
+        <div className="asideBottom"><div className="account-summary"><span className="avatar">{initials(session.handle)}</span><span><b>{session.handle}</b><small>{session.demo ? "Fictional sample" : "Personal workspace"}</small></span></div><button onClick={lock}>Lock Relay</button></div>
       </aside>
+      <main className="workspace-main">
+        <header className="workspace-toolbar"><h1>{browse ? "All Agreements" : destination}</h1><span className="toolbar-actions"><span className="source-badge" role="status">{status}</span><button onClick={() => pull()} disabled={busy || session.demo} aria-label="Sync agreements">↻</button><button onClick={lock} className="mobile-lock">Lock</button></span></header>
+        {error && <p role="alert" className="error">{error}</p>}
+        {destination === "Recaps" && <RecapsWorkspace recaps={recaps} items={items} demo={session.demo} onSelectAgreement={setSelected} onSettings={() => navigate("Settings")} />}
+        {destination === "Events" && !browse && <EventsWorkspace items={visible} onSelect={setSelected} onBrowse={openBrowse} />}
+        {destination === "People" && <PeopleWorkspace items={items} onSelect={setSelected} />}
+        {destination === "Messages" && <SourceMessages items={items} />}
+        {destination === "Settings" && <WebSettings session={session} items={items} lock={lock} />}
+        {destination === "Events" && browse && <>
       <section className="list">
         <header>
-          <h1>Agreements</h1>
+          <h2>All Agreements</h2>
           <button onClick={() => pull()} aria-label="Sync agreements">
             ↻
           </button>
@@ -375,7 +421,11 @@ export default function Relay() {
         ))}
         <footer>A shared-understanding view, not a legal contract.</footer>
       </section>
-      <section className="detail">
+        </>}
+      </main>
+      {navigation(true)}
+      <dialog ref={detailDialog} className="detail" onCancel={() => setSelected(null)} onClose={() => setSelected(null)}>
+        <button className="close-detail" onClick={() => setSelected(null)} aria-label="Close agreement">Close</button>
         {active ? (
           <>
             <span className="chip">{active.lifecycle}</span>
@@ -448,7 +498,7 @@ export default function Relay() {
             <p>Choose an agreement to inspect its source trail.</p>
           </div>
         )}
-      </section>
+      </dialog>
     </div>
   );
 }

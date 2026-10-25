@@ -161,9 +161,22 @@ struct AgreementEditor: View {
       DueEditor(due: $agreement.obligations[i].due)
       TextField("Repeat (Optional)", text: Binding(
         get: { agreement.obligations[i].recurrence?.raw_text ?? "" },
-        set: { agreement.obligations[i].recurrence = $0.isEmpty ? nil : Recurrence(rawText: $0) }))
+        set: { agreement.obligations[i].recurrence = $0.isEmpty ? nil : Recurrence(rrule: agreement.obligations[i].recurrence?.rrule, rawText: $0) }))
       if agreement.obligations[i].recurrence != nil {
-        Text("Repeat information is kept for reference. Marking done completes this obligation; it does not create the next occurrence.")
+        Picker("Schedule", selection: Binding(
+          get: { agreement.obligations[i].recurrence?.rrule ?? "" },
+          set: { agreement.obligations[i].recurrence?.rrule = $0.isEmpty ? nil : $0; changed = true })) {
+            Text("Reference Only").tag("")
+            Text("Daily").tag("FREQ=DAILY")
+            Text("Weekly").tag("FREQ=WEEKLY")
+            Text("Monthly").tag("FREQ=MONTHLY")
+            Text("Yearly").tag("FREQ=YEARLY")
+            if let rule = agreement.obligations[i].recurrence?.rrule,
+              !["FREQ=DAILY", "FREQ=WEEKLY", "FREQ=MONTHLY", "FREQ=YEARLY"].contains(rule) {
+              Text("Custom Rule · \(rule)").tag(rule)
+            }
+          }
+        Text("After completion, review and save the next occurrence. A due date and schedule are required.")
           .font(.caption).foregroundStyle(RelayTheme.muted)
       }
       TextField(

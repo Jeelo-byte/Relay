@@ -33,6 +33,12 @@ final class IntegrationTests: XCTestCase {
     XCTAssertEqual(a.provenance.extractor, "local_mlx")
     XCTAssertNotNil(a.obligations.first?.due)
     XCTAssertEqual(a.evidence.count, 2)
+    let recap = try XCTUnwrap(RecapEngine.highlights(messages: messages, rooms: DemoData.rooms).first)
+    let prompt = try RecapEngine.prompt(for: recap, messages: messages)
+    let recapOutput = try await manager.generate(prompt)
+    let generated = try RecapEngine.apply(recapOutput, to: recap, messages: messages)
+    XCTAssertEqual(generated.generated_by, "local_mlx")
+    XCTAssertFalse(generated.evidence.isEmpty)
   }
   @MainActor func testNativeNeonRoundTrip() async throws {
     guard ProcessInfo.processInfo.environment["RELAY_VERIFY_NEON"] == "1" else {
@@ -59,6 +65,13 @@ final class IntegrationTests: XCTestCase {
     let plain = try RelayCrypto.open(
       bytes, dek: second.dek, account: second.account_id, row: blob.row_id, version: blob.version)
     XCTAssertEqual(try JSONDecoder().decode(Agreement.self, from: plain), a)
+    let recap = try XCTUnwrap(RecapEngine.highlights(messages: DemoData.messages, rooms: DemoData.rooms).first)
+    _ = try await api.putRecord(recap, id: recap.id, session: session, base: 0)
+    let recapPull = try await remote.pull(since: 0)
+    let recapBlob = try XCTUnwrap(recapPull.items.first(where: { $0.row_id == recap.id }))
+    let recapBytes = try XCTUnwrap(recapBlob.envelope.flatMap(Data.init(base64URL:)))
+    let recapPlain = try RelayCrypto.open(recapBytes, dek: second.dek, account: second.account_id, row: recap.id, version: recapBlob.version)
+    XCTAssertEqual(try JSONDecoder().decode(ConversationRecap.self, from: recapPlain), recap)
     let credentials = try JSONSerialization.data(withJSONObject: [
       "handle": handle, "passphrase": pass,
     ])
@@ -66,5 +79,36 @@ final class IntegrationTests: XCTestCase {
       "relay-integration-account.json")
     try credentials.write(to: target, options: .atomic)
     try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+  }
+  func testMatrixSendIsIdempotentAndRespectsEncryptionAndConsent() async throws {
+    guard ProcessInfo.processInfo.environment["RELAY_VERIFY_MATRIX"] == "1" else { throw XCTSkip("Opt-in local Synapse test; set RELAY_VERIFY_MATRIX=1.") }
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let data = try Data(contentsOf: root.appendingPathComponent("infra/matrix/private/relay-account.json"))
+    let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
+    let server = URL(string: "http://localhost:8008")!
+    let token = try XCTUnwrap(object["access_token"]), user = try XCTUnwrap(object["user_id"])
+    let client = MatrixClient(session: MatrixSession(server: server, user_id: user, access_token: token))
+    let created = try await MatrixClient.request(server: server, path: "createRoom", token: token, method: "POST", body: ["preset": "private_chat", "name": "Relay isolated send verification", "invite": []])
+    let id = try XCTUnwrap(created["room_id"] as? String)
+    func cleanup() async {
+      _ = try? await MatrixClient.request(server: server, path: "rooms/\(MatrixClient.segment(id))/leave", token: token, method: "POST", body: [:])
+      _ = try? await MatrixClient.request(server: server, path: "rooms/\(MatrixClient.segment(id))/forget", token: token, method: "POST", body: [:])
+    }
+    do {
+      var room = ChatRoom(id: id, name: "Isolated test", network: .other, optedIn: true)
+      let transaction = UUID(), text = "Relay test message · no external recipients"
+      let first = try await client.send(room: room, text: text, transactionID: transaction)
+      let second = try await client.send(room: room, text: text, transactionID: transaction)
+      XCTAssertEqual(first, second)
+      let history = try await client.backfill(room: room)
+      XCTAssertEqual(history.messages.filter { $0.text == text }.count, 1)
+      do { _ = try await client.send(room: room, text: "Must not send", transactionID: UUID(), authorize: { false }); XCTFail("Consent withdrawal must stop sending") } catch is CancellationError {} catch { XCTFail("Unexpected cancellation error") }
+      room.opted_in = false
+      do { _ = try await client.send(room: room, text: "Must not send", transactionID: UUID()); XCTFail("Opted-out room accepted a send") } catch {}
+      room.opted_in = true
+      _ = try await MatrixClient.request(server: server, path: "rooms/\(MatrixClient.segment(id))/state/m.room.encryption", token: token, method: "PUT", body: ["algorithm": "m.megolm.v1.aes-sha2"])
+      do { _ = try await client.send(room: room, text: "Must not send plaintext", transactionID: UUID()); XCTFail("Encrypted room accepted plaintext") } catch {}
+      await cleanup()
+    } catch { await cleanup(); throw error }
   }
 }

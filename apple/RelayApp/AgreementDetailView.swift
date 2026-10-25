@@ -105,6 +105,23 @@ struct AgreementDetailView: View {
             }
           }
         }
+        if a.review_state == .accepted && a.isActive {
+          VStack(alignment: .leading, spacing: 12) {
+            Text("Reply Drafts").font(.title2.weight(.semibold))
+            Text("Templates to review and copy. Nothing is sent automatically.").font(.caption).foregroundStyle(RelayTheme.muted)
+            ForEach(ReplyDrafts.forAgreement(a)) { draft in
+              RelayPanel {
+                VStack(alignment: .leading, spacing: 12) {
+                  Text(draft.text).textSelection(.enabled)
+                  Button("Copy Draft", systemImage: "doc.on.doc") {
+                    PrivateClipboard.copy(draft.text)
+                    store.toast = "Draft copied for two minutes"
+                  }
+                }
+              }
+            }
+          }
+        }
         VStack(alignment: .leading, spacing: 16) {
           Text("Timeline").font(.title2.weight(.semibold))
           ForEach(a.timeline.sorted { $0.at > $1.at }) { event in
@@ -184,6 +201,10 @@ struct AgreementDetailView: View {
           .borderedProminent
         ).controlSize(.large)
       }
+      if let next = RecurrenceEngine.nextAgreement(after: a),
+        !store.agreements.contains(where: { $0.timeline.contains(where: { $0.type == "recurrence_created" && $0.old == a.id.uuidString }) }) {
+        Button("Review Next Occurrence", systemImage: "repeat") { onEdit(next) }.buttonStyle(.borderedProminent)
+      }
       Button("Edit Agreement", systemImage: "pencil") { onEdit(a) }.buttonStyle(.bordered)
         .controlSize(.large)
       Menu {
@@ -224,6 +245,12 @@ struct AgreementDetailView: View {
         term("Place", value: o.place?.text, symbol: "mappin.and.ellipse")
         if let r = o.recurrence { term("Repeats", value: r.raw_text, symbol: "repeat") }
         if let c = o.condition { term("Condition", value: c.text, symbol: "arrow.triangle.branch") }
+        if a.review_state == .accepted, let draft = CalendarDraft(agreement: a, obligation: o) {
+          ShareLink(item: CalendarDraftTransfer(draft: draft), preview: SharePreview("Calendar Draft")) {
+            Label("Export Calendar Draft", systemImage: "calendar.badge.plus")
+          }
+          Text("Review the draft in your calendar before adding it.").font(.caption).foregroundStyle(RelayTheme.muted)
+        }
       }
     }
   }
@@ -266,11 +293,12 @@ struct AgreementDetailView: View {
 }
 struct Avatar: View {
   let name: String
+  var size: CGFloat = 40
   var body: some View {
-    Text(name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined()).font(
-      .subheadline.weight(.semibold)
-    ).foregroundStyle(RelayTheme.primary).frame(width: 40, height: 40).background(
-      RelayTheme.secondarySurface, in: Circle()
+    Text(name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased()).font(
+      size >= 60 ? .title2.weight(.semibold) : .subheadline.weight(.semibold)
+    ).foregroundStyle(RelayTheme.accentText).frame(width: size, height: size).background(
+      RelayTheme.selection, in: Circle()
     ).accessibilityHidden(true)
   }
 }

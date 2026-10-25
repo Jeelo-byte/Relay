@@ -65,4 +65,4 @@ A checked item must have passing behavior evidence; compilation alone is not suf
 - [ ] Local embeddings for semantic search
 - [ ] OCR/voice evidence, link/media vault, mentions, reply debt and topic threads
 
-Excluded by the plan: briefs, recaps, digests, Ollama/local model servers, auto-send, automatic contact merging, plaintext Neon content, Redis, and the deferred Beeper/E2EE importer architecture.
+The user's final-design confirmation on October 25 reintroduces recaps and explicit user-confirmed sending. See `docs/FINAL-DESIGN.md` for current implementation and verification. Still excluded: automatic sending, automatic contact merging, plaintext Neon content, Ollama/local model servers, Redis, and the deferred Beeper/E2EE importer architecture.

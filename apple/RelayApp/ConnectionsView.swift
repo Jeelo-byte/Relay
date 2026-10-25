@@ -22,7 +22,7 @@ struct ConnectionsView: View {
         }.buttonStyle(.plain).frame(minHeight: 44)
       }
       Text(
-        "Link accounts on your Mac. Relay reads only the chats you choose and never sends replies."
+        "Link accounts on your Mac. Relay includes only the chats you choose. Replies are sent only after you review and confirm them."
       ).font(.caption).foregroundStyle(RelayTheme.muted)
     }.sheet(item: $selected) { service in
       if service == .imessage {
