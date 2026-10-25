@@ -56,7 +56,7 @@ Counts of product areas on main. Source: tests, `docs/FINAL-DESIGN.md`, and GitH
 | Real photos and attachments | The collage uses three sample images. Chat attachments stay unsupported placeholders. |
 | Synced person notes | Notes stay on the device that wrote them. |
 | Final onboarding and Settings | The five destinations are in place. The last design pass for onboarding and Settings is still open. |
-| A signed phone or iPad | Simulator and Mac builds exist. No physical device is signed or installed. |
+| Physical iPhone launch | Relay.app was signed with an Apple Development certificate and installed on Tj’s iPhone 16. The provisioning profile includes that phone and expires November 1, 2026. After developer trust was completed, the app launched successfully; a physical-device screenshot confirms Help & Feedback is rendered (`artifacts/tj-iphone-running.png`). This verifies installation/startup, not all feature flows on hardware. No physical iPad has been installed. |
 | Model evaluation and cloud mode | One Mac fixture passed. The ten-fixture gate, cloud provider, embeddings, OCR, and voice evidence are absent. |
 
 ## Current verification
@@ -66,6 +66,8 @@ Counts of product areas on main. Source: tests, `docs/FINAL-DESIGN.md`, and GitH
 - Native recovery and deletion passed again in the final full run, retaining the original DEK and decrypting previously written data. Sign-in now serializes with credential changes and recovery to prevent stale authentication from creating a session after a reset. One intermediate rerun hit the expected local signup rate limit; test transports now use isolated fixture identities, matching the Node tests, without changing production limits. The final rerun passed.
 - Ciphertext audit: 19 blob rows inspected; no seeded plaintext markers found. Log: `artifacts/security-neon-audit.log`.
 - Final macOS security build passed (`artifacts/security-final-macos-build.log`); the security code also compiled in the passing iPhone and iPad Xcode UI runs. Web production build passed after the browser recap fix (`artifacts/security-web-final-build.log`).
+- October 25 device build: `artifacts/tj-iphone-build.log` passed using the Xcode application project, automatic provisioning, and the signed-in Personal Team. `codesign --verify --deep --strict` passed; `artifacts/tj-iphone-install.log` confirms installation on Tj’s physical iPhone 16. The initial launch was denied pending developer trust; after trust completed, launch succeeded (`artifacts/tj-iphone-launch.log`) and a screenshot confirmed the native UI (`artifacts/tj-iphone-running.png`). `scripts/run-iphone.sh` records the reproducible build/install/launch path. The prior bare-executable install error came from opening the root Swift package instead of `Relay.xcodeproj`.
+- Normal simulator launch requires Xcode signing enabled for Keychain access. An unsigned build showed a vault alert even though isolated UI tests passed with an injected test key. Rebuilding with `CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-` opened the sample workspace on iPhone (`artifacts/working-iphone-xcode-signed.png`). The packaged Mac app also opened its sample Recaps workspace. Final iPad normal-launch verification remains pending.
 
 ## Next work
 
@@ -76,6 +78,6 @@ Counts of product areas on main. Source: tests, `docs/FINAL-DESIGN.md`, and GitH
 
 ## Checkpoint and review
 
-Implementation checkpoint: `4a7d554` on `codex/account-security`, pushed to GitHub with [draft PR #2](https://github.com/Jeelo-byte/Relay/pull/2). The web CI job has passed; the Apple CI job is still running at this update. Local live tests remain separate from CI, which skips external-service opt-ins.
+Implementation checkpoint: `4a7d554` on `codex/account-security`, pushed to GitHub with [draft PR #2](https://github.com/Jeelo-byte/Relay/pull/2). Both web and Apple CI jobs passed in run `40170716006`. Local live tests remain separate from CI, which skips external-service opt-ins.
 
 This tracker is the current evidence summary. `docs/STATUS.md` now points here; historical verification documents describe their own earlier checkpoints. The product is not yet complete.

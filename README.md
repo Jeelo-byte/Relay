@@ -18,6 +18,8 @@ The visual source for this pass is the [final product design](https://www.figma.
 
 ## Development
 
+- For Xcode Run on iPhone, iPad, or Mac, open **`Relay.xcodeproj`**, select the **Relay** app scheme, and choose a destination. Opening the repository folder or `Package.swift` selects a Swift package executable instead; that executable cannot be installed on iPhone and does not provide the macOS app bundle required by notifications.
+- For a connected iPhone, sign in to Xcode → Settings → Apple Accounts, then use `bash scripts/run-iphone.sh DEVICE_UDID APPLE_TEAM_ID`. The script builds and signs `Relay.app`, installs it, and launches the sample workspace. Its build log is `artifacts/iphone-device-build.log`. First launch may require trusting your developer account on the phone. Personal Team profiles need periodic renewal.
 - `swift build` builds the shared library and the macOS executable.
 - `swift test` runs the shared Swift tests.
 - `npm install && npm run normalize` rebuilds the TypeScript normalizer for JavaScriptCore.
