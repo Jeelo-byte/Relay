@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:3000** on the Mac. The setup guide is **http://localhost:3000/docs**. For a production-mode local server, stop development, then run `npm run build && npm start`.
+Open **http://localhost:3000** for the public landing page. Unlock the workspace at **http://localhost:3000/workspace**. The setup guide is **http://localhost:3000/docs**. For a production-mode local server, stop development, then run `npm run build && npm start`.
 
 The server needs `DATABASE_URL` and `PRELOGIN_HMAC_SECRET` in the ignored `apps/web/.env.local`. The existing Mac already has them. New installations can copy `.env.example` to that path and fill in the values. Never prefix these secrets with `NEXT_PUBLIC_`. Use the same database and security secret for all instances of this Relay backend. The existing database is initialized; do not reset it. A new database needs `node --env-file=apps/web/.env.local scripts/migrate.mjs` once.
 
