@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		F07A768CEACB4D72B5C34101 /* MacWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07A768CEACB4D72B5C34102 /* MacWorkspace.swift */; };
+		A83D61C6D1D04F7D920A3B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A83D61C6D1D04F7D920A3B02 /* Assets.xcassets */; };
 		0378AFB9222EC10A53D65C19 /* CalendarDraftTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BCF405907D62ACF1EACA53 /* CalendarDraftTransfer.swift */; };
 		087C61BD8A2FF20699CD4C80 /* AgreementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F569F1CC95EFE0F3C37787AC /* AgreementListView.swift */; };
 		36106F372C8FED63A9C7C24A /* MatrixConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8120EF0FA7A4B8901AF167DF /* MatrixConnectView.swift */; };
@@ -46,6 +47,7 @@
 
 /* Begin PBXFileReference section */
 		F07A768CEACB4D72B5C34102 /* MacWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWorkspace.swift; sourceTree = "<group>"; };
+		A83D61C6D1D04F7D920A3B02 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0EBD94A81CAB1263757E4877 /* RecapsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecapsView.swift; sourceTree = "<group>"; };
 		12E54D75C178A04FFA53DAA9 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
 		148DA32B423D43F136985A4F /* AccountRecoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRecoveryView.swift; sourceTree = "<group>"; };
@@ -89,6 +91,7 @@
 		0067E777BFD7D4ED74433801 /* RelayApp */ = {
 			isa = PBXGroup;
 			children = (
+				A83D61C6D1D04F7D920A3B02 /* Assets.xcassets */,
 				148DA32B423D43F136985A4F /* AccountRecoveryView.swift */,
 				BE8D02C2851E7A706A892485 /* AgreementDetailView.swift */,
 				3346FDA187AAF769417D00F5 /* AgreementEditor.swift */,
@@ -162,6 +165,7 @@
 			buildPhases = (
 				EC79C452CC5E84280E112945 /* Sources */,
 				EF50208E6B06E9FF6A31ED33 /* Frameworks */,
+				A83D61C6D1D04F7D920A3B03 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -194,6 +198,17 @@
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A83D61C6D1D04F7D920A3B03 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A83D61C6D1D04F7D920A3B01 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXProject section */
 		00400E7BA46B4893DB3DAE46 /* Project object */ = {

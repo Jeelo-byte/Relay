@@ -7,8 +7,7 @@ struct WelcomeView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 32) {
-        Label("Relay", systemImage: "checkmark.bubble.fill").font(.title2.weight(.bold))
-          .foregroundStyle(RelayTheme.primary)
+        RelayBrand()
         VStack(alignment: .leading, spacing: 16) {
           Text("Every promise.\nA little clearer.").font(.largeTitle.weight(.bold))
           Text("The things you agreed to, with the words that back them up.").font(.title3)

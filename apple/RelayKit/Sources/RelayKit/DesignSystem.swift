@@ -15,6 +15,24 @@ public enum RelayAssets {
     #endif
     return Image("Sample" + name, bundle: resources)
   }
+  public static var logo: Image { Image("RelayMark", bundle: resources) }
+}
+
+public struct RelayBrand: View {
+  @ScaledMetric(relativeTo: .title2) private var markSize: CGFloat = 40
+
+  public init() {}
+
+  public var body: some View {
+    HStack(spacing: 4) {
+      RelayAssets.logo.renderingMode(.template).resizable().scaledToFit()
+        .frame(width: markSize, height: markSize)
+      Text("Relay").font(.title2.weight(.bold))
+    }
+    .foregroundStyle(RelayTheme.accentText)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Relay")
+  }
 }
 
 public enum RelayTheme {
