@@ -4,13 +4,13 @@ Baseline: `main` at `1cede3a`, including implementation `5125b33`. Continuing on
 
 | | Count |
 | --- | --- |
-| Areas with passing evidence | 14 |
+| Areas with passing evidence | 15 |
 | Built, not proven in use | 6 |
-| Missing or blocked | 10 |
+| Missing or blocked | 9 |
 
 You can explore the sample workspace. You cannot demo live chats yet. The sample workspace, manual agreements, and encryption are trustworthy. A message from a real chat, accepted on iPad, then visible on the website, has not been run. Automatic sending is intentionally absent.
 
-Counts of product areas on main. Source: tests, `docs/FINAL-DESIGN.md`, and GitHub Actions run 40167830184.
+Counts of product areas at the current branch checkpoint. Source: tests, `docs/FINAL-DESIGN.md`, and GitHub Actions run 40167830184.
 
 ## Works
 
@@ -32,6 +32,7 @@ Counts of product areas on main. Source: tests, `docs/FINAL-DESIGN.md`, and GitH
 
 | Recovery-code reset | Unwraps the data key locally, replaces the passphrase and recovery wraps atomically, revokes existing sessions/devices, and returns a fresh device identity. Wrong, stale, and reused recovery proofs are rejected. Native recovery re-login decrypts the original agreement. New recovery code requires saved-code confirmation. |
 | Account deletion | Exact handle and current passphrase required, followed by an explicit destructive confirmation in the app. Live API and native tests reject wrong proofs and verify that deleted account credentials and sessions stop working. Deletion uses disposable test accounts only. |
+| Physical iPhone launch | Relay.app was signed with an Apple Development certificate and installed on Tj’s iPhone 16. The provisioning profile includes that phone and expires November 1, 2026. After developer trust was completed, the app launched successfully; a physical-device screenshot confirms Help & Feedback is rendered (`artifacts/tj-iphone-running.png`). The user also confirmed it works. This verifies installation/startup, not all feature flows on hardware. No physical iPad has been installed. |
 
 ## Built, not proven
 
@@ -56,7 +57,6 @@ Counts of product areas on main. Source: tests, `docs/FINAL-DESIGN.md`, and GitH
 | Real photos and attachments | The collage uses three sample images. Chat attachments stay unsupported placeholders. |
 | Synced person notes | Notes stay on the device that wrote them. |
 | Final onboarding and Settings | The five destinations are in place. The last design pass for onboarding and Settings is still open. |
-| Physical iPhone launch | Relay.app was signed with an Apple Development certificate and installed on Tj’s iPhone 16. The provisioning profile includes that phone and expires November 1, 2026. After developer trust was completed, the app launched successfully; a physical-device screenshot confirms Help & Feedback is rendered (`artifacts/tj-iphone-running.png`). This verifies installation/startup, not all feature flows on hardware. No physical iPad has been installed. |
 | Model evaluation and cloud mode | One Mac fixture passed. The ten-fixture gate, cloud provider, embeddings, OCR, and voice evidence are absent. |
 
 ## Current verification
@@ -71,7 +71,7 @@ Counts of product areas on main. Source: tests, `docs/FINAL-DESIGN.md`, and GitH
 
 ## Next work
 
-1. Add dedicated recovery, passphrase, and deletion UI flows. All five current general UI flows pass on both simulators.
+1. Add dedicated end-to-end UI tests for the implemented recovery, passphrase, and deletion screens. All five current general UI flows pass on both simulators.
 2. Implement actual data-key rotation and offline passphrase unlock.
 3. Complete web live conversations/sending, media, and remaining final-design behavior.
 4. Keep account linking, physical signing, and real service traffic explicitly separate from fixture/sample evidence.
