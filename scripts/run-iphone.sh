@@ -19,7 +19,7 @@ app_path="DerivedData/Build/Products/Debug-iphoneos/Relay.app"
 codesign --verify --deep --strict "$app_path"
 xcrun devicectl device install app --device "$device_udid" "$app_path"
 if ! xcrun devicectl device process launch --device "$device_udid" \
-  --terminate-existing app.relay.agreements -- -demo; then
+  --terminate-existing app.relay.agreements; then
   printf 'If iOS reports developer trust, trust your developer account in Settings > General > VPN & Device Management on the phone, then rerun.\n' >&2
   exit 1
 fi

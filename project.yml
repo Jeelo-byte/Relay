@@ -61,5 +61,3 @@ schemes:
       targets: [RelayUITests]
     run:
       config: Debug
-      commandLineArguments:
-        '-demo': true

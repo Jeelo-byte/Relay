@@ -162,4 +162,24 @@ final class IntegrationTests: XCTestCase {
       await cleanup()
     } catch { await cleanup(); throw error }
   }
+
+  func testLiveWhatsAppIncomingMessagesAndImage() async throws {
+    guard ProcessInfo.processInfo.environment["RELAY_VERIFY_WHATSAPP"] == "1" else {
+      throw XCTSkip("Opt-in read-only WhatsApp verification; set RELAY_VERIFY_WHATSAPP=1.")
+    }
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let directory = root.appendingPathComponent("infra/matrix/private")
+    let account = try JSONDecoder().decode(MatrixSession.self, from: Data(contentsOf: directory.appendingPathComponent("relay-account.json")))
+    let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: directory.appendingPathComponent("live-test.json"))) as? [String: String])
+    let roomID = try XCTUnwrap(state["test_room_id"])
+    let client = MatrixClient(session: account)
+    let discovered = try await client.discover()
+    var room = try XCTUnwrap(discovered.first { $0.id == roomID })
+    room.opted_in = true
+    let result = try await client.sync(rooms: [room], since: nil)
+    XCTAssertTrue(result.messages.contains { !$0.sender.is_self && $0.kind == "text" })
+    let photo = try XCTUnwrap(result.messages.first { $0.kind == "image" }?.media)
+    let data = try await client.imageData(mxc: photo.mxc)
+    XCTAssertGreaterThan(data.count, 100)
+  }
 }

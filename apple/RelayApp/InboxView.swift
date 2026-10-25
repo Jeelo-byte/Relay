@@ -40,6 +40,12 @@ struct ConversationView: View {
                 Button("Copy Message", systemImage: "doc.on.doc") { PrivateClipboard.copy(message.text) }
               }
             }
+            .accessibilityActions {
+              if message.kind == "text" && !message.redacted {
+                Button("Create Agreement") { onCreate(store.newFromMessage(message)) }
+                Button("Copy Message") { PrivateClipboard.copy(message.text) }
+              }
+            }
           }
           if let latest = messages.last(where: { !$0.sender.is_self && !$0.redacted }) {
             Text("REPLY DRAFT · REVIEW BEFORE SENDING").font(.caption2.weight(.semibold)).foregroundStyle(RelayTheme.muted)
@@ -135,20 +141,61 @@ struct ConversationView: View {
         Text(original.map { "Reply to \($0.sender.display_name_snapshot): \($0.text)" } ?? "Reply · Original message unavailable")
           .font(.caption).foregroundStyle(RelayTheme.muted).lineLimit(2)
       }
-      Text(message.redacted ? "Message deleted" : message.text).font(.body).textSelection(.enabled)
+      Text(message.redacted ? "Message deleted" : message.text).font(.body)
       if !message.redacted, let media = message.media {
-        Label(media.name ?? message.kind.capitalized, systemImage: message.kind == "image" ? "photo" : "paperclip").font(.subheadline)
-        if let size = media.size { Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)).font(.caption).foregroundStyle(RelayTheme.muted) }
+        if message.kind == "image" {
+          MessageImageView(message: message)
+        } else {
+          Label(media.name ?? message.kind.capitalized, systemImage: "paperclip").font(.subheadline)
+          if let size = media.size { Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)).font(.caption).foregroundStyle(RelayTheme.muted) }
+        }
       }
       if message.kind == "unsupported" || message.kind == "encrypted" {
         Label("View this message in its source app.", systemImage: "info.circle").font(.caption).foregroundStyle(RelayTheme.muted)
       }
       if message.edited { SourceBadge(title: "Edited") }
-      if !message.redacted && message.kind == "text" {
-        Button("Create Agreement", systemImage: "plus") { onCreate(store.newFromMessage(message)) }.font(.caption)
-      }
     }.padding(14).frame(maxWidth: message.sender.is_self ? 580 : 650, alignment: .leading)
       .background(message.sender.is_self ? RelayTheme.selection : RelayTheme.surface, in: RoundedRectangle(cornerRadius: 16))
       .overlay(RoundedRectangle(cornerRadius: 16).stroke(highlighted == message.id ? RelayTheme.accentText : .clear, lineWidth: 2))
+  }
+}
+
+private struct MessageImageView: View {
+  @EnvironmentObject private var store: RelayStore
+  let message: ChatMessage
+  @State private var image: Image?
+  @State private var failure: String?
+  @State private var retry = UUID()
+  var body: some View {
+    Group {
+      if let image {
+        image.resizable().scaledToFit().frame(maxWidth: 480, maxHeight: 360, alignment: .leading)
+          .clipShape(RoundedRectangle(cornerRadius: 10))
+          .accessibilityLabel("Photo from \(message.sender.display_name_snapshot)")
+          .accessibilityIdentifier("message-image-preview")
+      } else if let failure {
+        VStack(alignment: .leading, spacing: 8) {
+          Label(failure, systemImage: "photo").font(.caption).foregroundStyle(RelayTheme.muted)
+          Button("Retry Photo") { retry = UUID() }
+        }
+      } else {
+        ProgressView("Loading Photo…").frame(minHeight: 100)
+      }
+    }.task(id: retry) { await load() }
+  }
+  @MainActor private func load() async {
+    failure = nil
+    do {
+      let data = try await store.loadMessageImage(message)
+      try Task.checkCancellation()
+      #if os(macOS)
+      guard let decoded = NSImage(data: data) else { throw VaultError.invalidEnvelope }
+      image = Image(nsImage: decoded)
+      #else
+      guard let decoded = UIImage(data: data) else { throw VaultError.invalidEnvelope }
+      image = Image(uiImage: decoded)
+      #endif
+    } catch is CancellationError { }
+    catch { failure = "Photo unavailable. Check your message connection and try again." }
   }
 }

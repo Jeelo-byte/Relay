@@ -24,10 +24,13 @@ import SwiftUI
   @Published public var highlightedMessageID: String?
   @Published public var highlightedRoomID: String?
   @Published public var matrixStatus = "Not Connected"
+  @Published public private(set) var includeAllWhatsApp = false
   @Published public var imessageStatus = "Not Connected"
   @Published public var imessageError: String?
   private var imessageSyncing = false
   private var matrixSyncing = false
+  private var matrixDiscoveredAt: Date?
+  private var matrixSelectionVersion = 0
   public private(set) var deviceID: UUID
   private var local: LocalStore?
   private var syncTask: Task<Void, Never>?
@@ -65,6 +68,8 @@ import SwiftUI
       outgoing = try local!.load([OutgoingMessage].self, id: outgoingRecord) ?? []
       isDemo = (try local!.meta("demo")) == "true"
       started = (try local!.meta("started")) == "true"
+      includeAllWhatsApp = (try local!.meta("whatsapp_all_chats")) == "true"
+      if ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil { try removeSampleData() }
       if restoreSession, ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil,
         let data = try KeychainStore.read("account-session")
       {
@@ -73,7 +78,8 @@ import SwiftUI
         syncStatus = "Locked"
       }
     } catch { self.error = error.localizedDescription }
-    if ProcessInfo.processInfo.arguments.contains("-demo") && !started { loadDemo() }
+    if ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] != nil,
+      ProcessInfo.processInfo.arguments.contains("-demo") && !started { loadDemo() }
   }
   public var visible: [Agreement] { agreements.filter { $0.review_state != .dismissed } }
   public var dismissed: [Agreement] { agreements.filter { $0.review_state == .dismissed } }
@@ -90,6 +96,7 @@ import SwiftUI
     UserDefaults.standard.set(deviceID.uuidString, forKey: "relay.device")
   }
   public func loadDemo() {
+    guard ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] != nil else { return }
     guard session == nil, agreements.isEmpty else {
       toast = "Your current workspace is already open"
       return
@@ -102,6 +109,27 @@ import SwiftUI
     cacheChats()
     for a in DemoData.agreements { save(a) }
     toast = "Sample workspace is ready"
+  }
+  // Fixture IDs are explicit; never infer sample data from a person's name or message text.
+  func removeSampleData() throws {
+    func sampleRoom(_ id: String) -> Bool { id.hasPrefix("!demo-") && id.hasSuffix(":relay.local") }
+    let sampleAgreements = agreements.filter {
+      !$0.source_room_ids.isEmpty && $0.source_room_ids.allSatisfy(sampleRoom)
+    }
+    let sampleRecaps = recaps.filter { sampleRoom($0.room_id) }
+    for id in sampleAgreements.map(\.id) + sampleRecaps.map(\.id) { try local?.remove(id) }
+    let removed = Set(sampleAgreements.map(\.id))
+    agreements.removeAll { removed.contains($0.id) }
+    recaps.removeAll { sampleRoom($0.room_id) }
+    messages.removeAll { sampleRoom($0.room_id) }
+    rooms.removeAll { sampleRoom($0.id) }
+    outgoing.removeAll { sampleRoom($0.room_id) }
+    isDemo = false
+    try local?.setMeta("demo", value: "false")
+    try local?.save(personNotes, id: notesRecord, dirty: false)
+    try local?.save(outgoing, id: outgoingRecord, dirty: false)
+    try local?.save(messages, id: chatRecord, dirty: false)
+    try local?.save(rooms, id: roomsRecord, dirty: false)
   }
   @discardableResult public func save(_ a: Agreement) -> Bool {
     var value = a
@@ -297,6 +325,9 @@ import SwiftUI
     for id in (try? local?.ids()) ?? [] { try? local?.remove(id) }
     try? local?.setMeta("since", value: "0")
     try? local?.setMeta("matrix_since", value: "")
+    includeAllWhatsApp = false
+    matrixDiscoveredAt = nil
+    try? local?.setMeta("whatsapp_all_chats", value: "false")
     KeychainStore.delete("matrix-session")
     session = nil
     KeychainStore.delete("account-session")
@@ -333,6 +364,11 @@ import SwiftUI
   }
   public func setOptIn(_ id: String, _ opted: Bool) {
     if let i = rooms.firstIndex(where: { $0.id == id }) {
+      matrixSelectionVersion += 1
+      if opted && !rooms[i].opted_in && !id.hasPrefix("imessage:") {
+        // A global cursor may already be past this chat's first incoming message.
+        try? local?.setMeta("matrix_since", value: "")
+      }
       rooms[i].opted_in = opted
       cacheChats()
     }
@@ -430,6 +466,7 @@ import SwiftUI
             if try JSONDecoder().decode(RecordHeader.self, from: plain).schema == "relay.recap/1" {
               let recap = try JSONDecoder().decode(ConversationRecap.self, from: plain)
               guard recap.id == row.row_id else { throw VaultError.invalidEnvelope }
+              if recap.room_id.hasPrefix("!demo-") && recap.room_id.hasSuffix(":relay.local") { continue }
               try local.save(recap, id: recap.id, dirty: false, serverVersion: row.version)
               if let i = recaps.firstIndex(where: { $0.id == recap.id }) { recaps[i] = recap } else { recaps.append(recap) }
               continue
@@ -438,6 +475,9 @@ import SwiftUI
             guard a.id == row.row_id, a.schema == "relay.agreement/1" else {
               throw VaultError.unsupportedVersion
             }
+            if !a.source_room_ids.isEmpty && a.source_room_ids.allSatisfy({
+              $0.hasPrefix("!demo-") && $0.hasSuffix(":relay.local")
+            }) { continue }
             try local.save(a, id: a.id, dirty: false, serverVersion: row.version)
             if let i = agreements.firstIndex(where: { $0.id == a.id }) {
               agreements[i] = a
@@ -492,7 +532,62 @@ public enum Merge {
 
 extension RelayStore {
 
+  public func loadMessageImage(_ message: ChatMessage) async throws -> Data {
+    func allowed() -> Bool {
+      !locked && !isDemo && rooms.contains { $0.id == message.room_id && $0.opted_in && !$0.encrypted }
+        && messages.contains { $0.id == message.id && !$0.redacted && $0.media == message.media }
+    }
+    guard allowed(), message.kind == "image", let media = message.media,
+      let credentials = try KeychainStore.read("matrix-session") else { throw VaultError.locked }
+    let session = try JSONDecoder().decode(MatrixSession.self, from: credentials)
+    let data = try await MatrixClient(session: session).imageData(mxc: media.mxc)
+    guard allowed(), try KeychainStore.read("matrix-session") == credentials else { throw CancellationError() }
+    return data
+  }
+
+  public func setIncludeAllWhatsApp(_ enabled: Bool) {
+    matrixSelectionVersion += 1
+    includeAllWhatsApp = enabled
+    matrixDiscoveredAt = nil
+    try? local?.setMeta("whatsapp_all_chats", value: enabled ? "true" : "false")
+    if enabled {
+      for i in rooms.indices where rooms[i].service == .whatsapp || rooms[i].network == .whatsapp {
+        rooms[i].opted_in = true
+      }
+      // Include messages already received by the bridge as well as future arrivals.
+      try? local?.setMeta("matrix_since", value: "")
+    }
+    cacheChats()
+  }
+
+  func mergeDiscoveredMatrixRooms(_ discovered: [ChatRoom]) {
+    for var room in discovered {
+      if let i = rooms.firstIndex(where: { $0.id == room.id }) {
+        room.opted_in = rooms[i].opted_in
+        // Older discovery identified a bridge's setup chat by its bot member.
+        if includeAllWhatsApp && rooms[i].service == .whatsapp && room.service == nil {
+          room.opted_in = false
+        }
+        room.backfill_cursor = rooms[i].backfill_cursor
+        room.backfill_state = rooms[i].backfill_state
+        rooms[i] = room
+      } else {
+        room.opted_in = includeAllWhatsApp && room.service == .whatsapp && !room.encrypted
+        if room.opted_in {
+          matrixSelectionVersion += 1
+          try? local?.setMeta("matrix_since", value: "")
+        }
+        rooms.append(room)
+      }
+    }
+  }
+
   public func connectMatrix(_ matrix: MatrixSession, discovered: [ChatRoom]) throws {
+    let previous = try KeychainStore.read("matrix-session").flatMap {
+      try? JSONDecoder().decode(MatrixSession.self, from: $0)
+    }
+    let sameAccount = previous == nil
+      || (previous?.server == matrix.server && previous?.user_id == matrix.user_id)
     if isDemo {
       for a in agreements { try local?.remove(a.id) }
       agreements = []
@@ -501,11 +596,27 @@ extension RelayStore {
       try local?.setMeta("demo", value: "false")
     }
     try KeychainStore.write(JSONEncoder().encode(matrix), key: "matrix-session")
-    rooms = discovered + rooms.filter { $0.id.hasPrefix("imessage:") }
+    updateMatrixConnectionRooms(discovered, sameAccount: sameAccount)
+    matrixDiscoveredAt = nil
     matrixStatus = "Connected"
     try local?.setMeta("matrix_since", value: "")
     cacheChats()
     beginManual()
+  }
+  func updateMatrixConnectionRooms(_ discovered: [ChatRoom], sameAccount: Bool) {
+    matrixSelectionVersion += 1
+    if sameAccount {
+      mergeDiscoveredMatrixRooms(discovered)
+    } else {
+      // Consent belongs to a message account, never to the next person signing in.
+      rooms = discovered.map { room in var value = room; value.opted_in = false; return value }
+        + rooms.filter { $0.id.hasPrefix("imessage:") }
+      messages.removeAll { !$0.room_id.hasPrefix("imessage:") }
+      outgoing.removeAll { !$0.room_id.hasPrefix("imessage:") }
+      try? local?.save(outgoing, id: outgoingRecord, dirty: false)
+      includeAllWhatsApp = false
+      try? local?.setMeta("whatsapp_all_chats", value: "false")
+    }
   }
   public func backfillRoom(_ id: String) async {
     if id.hasPrefix("imessage:") {
@@ -544,16 +655,45 @@ extension RelayStore {
     do {
       guard let data = try KeychainStore.read("matrix-session") else { return }
       let s = try JSONDecoder().decode(MatrixSession.self, from: data)
+      let client = MatrixClient(session: s)
+      if matrixDiscoveredAt == nil || Date().timeIntervalSince(matrixDiscoveredAt!) >= 15 {
+        let discovered = try await client.discover(joinWhatsAppInvites: includeAllWhatsApp)
+        guard !locked, try KeychainStore.read("matrix-session") == data else { return }
+        mergeDiscoveredMatrixRooms(discovered)
+        matrixDiscoveredAt = Date()
+      }
       let next = try local?.meta("matrix_since")
-      let response = try await MatrixClient(session: s).sync(
+      let selectionVersion = matrixSelectionVersion
+      let response = try await client.sync(
         rooms: rooms.filter { !$0.id.hasPrefix("imessage:") }, since: next)
       guard !locked, try KeychainStore.read("matrix-session") == data else { return }
-      for m in response.messages {
-        if !messages.contains(where: { $0.id == m.id }) { messages.append(m) }
+      applyMatrixEvents(messages: response.messages, raw: response.raw, selfUser: s.user_id)
+      cacheChats()
+      if matrixSelectionVersion == selectionVersion {
+        try local?.setMeta("matrix_since", value: response.next)
       }
-      for e in response.raw {
+      matrixStatus = "Connected"
+    } catch {
+      matrixStatus = "Connection Issue"
+      self.error = error.localizedDescription
+    }
+  }
+  func applyMatrixEvents(messages incoming: [ChatMessage], raw: [[String: Any]], selfUser: String) {
+      guard !locked else { return }
+      for m in incoming where rooms.contains(where: { $0.id == m.room_id && $0.opted_in && !$0.encrypted }) {
+        if let i = messages.firstIndex(where: { $0.id == m.id }) {
+          // Initial syncs may contain the bridge's recovered content bundled into
+          // the original event, rather than a separate replacement event.
+          if messages[i].kind == "unsupported", !messages[i].redacted,
+            messages[i].sender.id == m.sender.id, m.kind != "unsupported" {
+            messages[i] = m
+          }
+        } else { messages.append(m) }
+      }
+      for e in raw {
         let c = e["content"] as? [String: Any] ?? [:]
         let room = e["relay_room_id"] as? String ?? ""
+        guard rooms.contains(where: { $0.id == room && $0.opted_in && !$0.encrypted }) else { continue }
         if e["type"] as? String == "m.room.redaction",
           let target = (e["redacts"] ?? c["redacts"]) as? String
         {
@@ -564,16 +704,26 @@ extension RelayStore {
           let target = relates["event_id"] as? String,
           let new = c["m.new_content"] as? [String: Any], let text = new["body"] as? String
         {
+          // A bridge may first emit an undecryptable notice and replace it once keys arrive.
+          var replacementEvent = e
+          replacementEvent["event_id"] = target
+          replacementEvent["content"] = new
+          if let known = rooms.first(where: { $0.id == room && $0.opted_in }),
+            var replacement = MessageEventParser.message(replacementEvent, room: known,
+              selfUser: selfUser, members: [:]) {
+            if let i = messages.firstIndex(where: { $0.room_id == room && $0.event_id == target }) {
+              guard messages[i].sender.id == replacement.sender.id, !messages[i].redacted else { continue }
+              replacement.sender = messages[i].sender
+              replacement.ts = messages[i].ts
+              replacement.edited = true
+              messages[i] = replacement
+            } else if c["com.beeper.dont_render_edited"] as? Bool == true {
+              messages.append(replacement)
+            } else { continue }
+          } else { continue }
           markSource(room: room, event: target, deleted: false, text: text)
         }
       }
-      cacheChats()
-      try local?.setMeta("matrix_since", value: response.next)
-      matrixStatus = "Connected"
-    } catch {
-      matrixStatus = "Connection Issue"
-      self.error = error.localizedDescription
-    }
   }
   private func markSource(room: String, event: String, deleted: Bool, text: String?) {
     if let i = messages.firstIndex(where: { $0.room_id == room && $0.event_id == event }) {

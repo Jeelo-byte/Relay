@@ -74,10 +74,20 @@ Counts of product areas at the current branch checkpoint. Source: tests, `docs/F
 
 ## Next work
 
-1. Add dedicated end-to-end UI tests for the implemented recovery, passphrase, and deletion screens. All five current general UI flows pass on both simulators.
-2. Implement actual data-key rotation and offline passphrase unlock.
-3. Complete web live conversations/sending, media, and remaining final-design behavior.
-4. Keep account linking, physical signing, and real service traffic explicitly separate from fixture/sample evidence.
+Deliver one complete, verified item, update this file with its evidence, and push that checkpoint to GitHub before the next item. Do not mark a design, a compiling screen, or a running container as a working feature.
+
+| Order | Deliverable | Status and completion gate |
+| --- | --- | --- |
+| 1 | WhatsApp sync, photo previews, message actions, and real-data-only startup | Implemented and regression verified; ready for the first GitHub checkpoint. See evidence below. A fresh visual inspection of the running Mac app remains open; this is separate from passing live read-only ingestion and simulator interactions. |
+| 2 | Friendly guided connections | Pending. Implement the existing guided WhatsApp Figma flow in native startup and Settings. Save/resume progress, allow setup later, show actual pairing/expiry/reconnect states, search/select chats, and require a real incoming-message check. Remove manual infrastructure steps from the ordinary connection flow where the implementation supports it. Then verify each additional service one at a time. |
+| 3 | Hosting and reachability | Pending. Choose and document local Mac versus always-on relay hosting; separate website/API, encrypted storage, and bridge infrastructure. Provide trusted HTTPS access for phones and browsers, durable bridge sessions, backups, and actual reconnect/restart evidence. No hosting purchase or public deployment has been made. |
+| 4 | Live website interface | Pending. Implement authenticated live conversation lists, incoming updates, message search, real photo display, and confirmed sending with chat consent and lock/session cleanup. Verify against the same real WhatsApp account; saved source excerpts alone do not satisfy this. |
+| 5 | Complete website documentation | Initial WhatsApp setup guide built. Keep it current with linking, host requirements, privacy, chat controls, images, errors, reconnects, cross-device setup, and service-specific availability. Document every finished checkpoint as it ships. |
+| 6 | Final polish across platforms | Pending. Follow the existing Figma designs, add subtle page transitions and interaction feedback, respect Reduce Motion, and verify keyboard, VoiceOver, large text, dark mode, compact layouts, and empty/error states. |
+| 7 | Remaining security and sync work | Pending. Dedicated passphrase/recovery/deletion UI tests, actual data-key rotation, offline passphrase unlock, and field-level multi-device conflict handling. |
+| 8 | Remaining product features and evidence | Pending. Live attachments/recap galleries, synced person notes, real iMessage verification, reminder delivery, model evaluation/cloud mode, and the outstanding acceptance requirements in the build plan. |
+
+October 25 user clarification: service connection must become user friendly, the project needs an explicit server-hosting plan, the website must have both documentation and a working live interface, and final polish includes small navigation animations. These are implementation requirements; they are not complete merely because designs exist.
 
 ## Release onboarding and clean workspace requirements
 
@@ -97,3 +107,31 @@ Figma was re-read October 25 (session `3d038742-4354-47c5-8f3f-e35e9a3d285f`), i
 Security implementation checkpoint: `4a7d554` on `codex/account-security`, pushed to GitHub with [draft PR #2](https://github.com/Jeelo-byte/Relay/pull/2). Both web and Apple CI jobs passed in run `40170716006`. Local live tests remain separate from CI, which skips external-service opt-ins.
 
 This tracker is the current evidence summary. `docs/STATUS.md` now points here; historical verification documents describe their own earlier checkpoints. The product is not yet complete.
+
+## October 25 follow-up: real WhatsApp and setup
+
+User requested automatic incoming updates, all WhatsApp conversations, actual image display, and agreement actions in a message context menu. The message refresh has been separated from account sync and runs while the Mac app is unlocked. All-chat inclusion is now an explicit saved setting with automatic discovery and individual pauses. Bridge portal creation no longer targets only the original test group; existing group discovery returned 73 groups and imports under server join limits. This does not import the full WhatsApp history.
+
+The live read-only WhatsApp integration test passed, including an authenticated image download. The latest Swift run is logged in `artifacts/whatsapp-full-tests.log`; final UI checks and build evidence are recorded after verification. Cross-device live chat, web live chat, videos, full media galleries, and automatic agreement acceptance are not claimed.
+
+New requirements and current controls: [WhatsApp setup](../docs/WHATSAPP-SETUP.md) and [guided onboarding](../docs/ONBOARDING.md). The user explicitly requires **real data only** now: remove normal sample entry points, demo launch defaults and stored known fixture records while preserving real data. Figma work adds a separate guided WhatsApp setup page; implementation of that new native startup flow remains separate from the design deliverable. Website documentation is being added at `/docs`.
+
+## October 25 implementation checkpoint: WhatsApp and clean startup
+
+- Incoming refresh runs every three seconds while the Mac workspace is unlocked, independently of encrypted-account sync. All-chat inclusion is saved; discovery preserves per-chat pauses and reconnecting the same message account retains them. A new message account starts with chat consent off. New or re-enabled chats reset their initial sync cursor so their first messages cannot be skipped. Consent changes during a request cannot overwrite that reset.
+- WhatsApp decryption placeholders recover into text or image messages, including replacements bundled into an initial sync. Regression coverage checks sender identity, deduplication, original timestamps, paused chats, persistence, and preservation of deleted state.
+- Authenticated photos have loading/retry states and a 20 MB bound. Message actions use the system context menu and accessibility actions. Normal native and web entry points no longer offer samples; launch scripts and Xcode defaults no longer seed them. Cleanup removes fixture-only source records and keeps real messages, manual agreements, mixed-source agreements, and private notes.
+- Website `/docs` now explains WhatsApp linking, chat selection, delivery checks, photos, agreement actions, privacy, troubleshooting, and server requirements. It is linked from web sign-in and web Help & Feedback. Local hosting is the implemented setup; an always-on host and a live browser messaging interface remain pending.
+
+Verification on October 25:
+
+| Check | Result |
+| --- | --- |
+| `RELAY_VERIFY_WHATSAPP=1 swift test` | 48 executed, 44 passed, 4 unrelated external-service/model tests skipped; zero failures. Live read-only WhatsApp incoming text and authenticated image download passed. Log: `artifacts/whatsapp-checkpoint-tests.log`. |
+| `npm test` | 7 passed, 1 live Neon test skipped; zero failures. Log: `artifacts/whatsapp-checkpoint-node.log`. |
+| `npm run build` | Passed, including `/docs`. Log: `artifacts/whatsapp-checkpoint-web-build.log`. Production guide loaded in the browser, including hosting guidance and truthful current-platform limits. |
+| iPhone UI | Both new tests passed: fresh empty startup/local relaunch and long-press → Create Agreement → editor. 43.155 seconds; `artifacts/whatsapp-checkpoint-iphone.xcresult`. |
+| iPad UI | The same two tests passed in 66.009 seconds; `artifacts/whatsapp-checkpoint-ipad.xcresult`. |
+| Mac package | `scripts/package-mac.sh artifacts/Relay.app` and strict signature verification passed. Log: `artifacts/whatsapp-checkpoint-mac-build.log`. Native screen inspection timed out after relaunch, so a fresh Mac photo-preview/right-click visual check is still unverified. |
+
+No message was sent to a real WhatsApp conversation during this checkpoint. Credentials, private chat data, and ignored verification artifacts are excluded from Git. Continue with the ordered roadmap above; designs alone do not mark the remaining items complete.

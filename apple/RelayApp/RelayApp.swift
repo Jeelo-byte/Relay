@@ -32,9 +32,20 @@ import SwiftUI
           }
         }
         .task {
+          // Message delivery must not wait behind account uploads or an active Mac window.
+          while !Task.isCancelled {
+            #if os(macOS)
+            await store.syncMatrix()
+            #else
+            if scenePhase == .active { await store.syncMatrix() }
+            #endif
+            do { try await Task.sleep(for: .seconds(3)) } catch { break }
+          }
+        }
+        .task {
           while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(30))
-            if !Task.isCancelled && scenePhase == .active { await store.sync(); await store.syncMatrix(); await syncIMessages() }
+            if !Task.isCancelled && scenePhase == .active { await store.sync(); await syncIMessages() }
           }
         }
         #if os(macOS)

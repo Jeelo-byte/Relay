@@ -19,6 +19,12 @@ struct MatrixConnectView: View {
           Button(busy ? "Connecting…" : "Connect", action: connect).disabled(busy)
         }
         ConnectionsView()
+        Section("WhatsApp Conversations") {
+          Toggle("Include All WhatsApp Chats", isOn: Binding(
+            get: { store.includeAllWhatsApp }, set: { store.setIncludeAllWhatsApp($0) }))
+          Text("Automatically include existing and new WhatsApp chats as the bridge discovers them. You can pause individual chats below. Turning this off stops automatic inclusion; use the chat switches to pause chats already included.")
+            .font(.caption).foregroundStyle(RelayTheme.muted)
+        }
         Section("Where Messages Are Decrypted") {
           Text(
             "Your messages are stored by a Matrix server running on your own Mac. Relay uses unencrypted bridged rooms for this demo. Connect only accounts and chats you have permission to use."
@@ -33,7 +39,7 @@ struct MatrixConnectView: View {
         if !store.rooms.isEmpty {
           Section("Choose Chats") {
             Text(
-              "Every live chat starts off. Turn on only the conversations you want Relay to read."
+              store.includeAllWhatsApp ? "All WhatsApp chats are included automatically. Pause any conversation below." : "Turn on the conversations you want Relay to read."
             ).font(.caption).foregroundStyle(RelayTheme.muted)
             ForEach(store.rooms.filter { !$0.id.hasPrefix("imessage:") }) { room in
               Toggle(

@@ -29,8 +29,6 @@ struct WelcomeView: View {
         VStack(spacing: 12) {
           Button("Create or Unlock Account") { showAccount = true }.buttonStyle(.borderedProminent)
             .controlSize(.large).frame(maxWidth: .infinity)
-          Button("Explore the Sample Workspace") { store.loadDemo() }.buttonStyle(.bordered)
-            .controlSize(.large)
           Button("Start on This Device") { store.beginManual() }.font(.subheadline)
         }.frame(maxWidth: .infinity)
         Text(
