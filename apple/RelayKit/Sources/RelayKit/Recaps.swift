@@ -2,6 +2,7 @@ import Foundation
 
 public struct ConversationRecap: Codable, Identifiable, Equatable, Sendable {
   public var schema = "relay.recap/1"
+  public var isLocalAI: Bool { ["local_mlx", "local_ollama"].contains(generated_by) }
   public var id = UUID()
   public var room_id: String
   public var room_name: String
@@ -80,7 +81,7 @@ public enum RecapEngine {
     updated.title = result.title; updated.summary = result.summary
     updated.evidence = try validate(result.evidence, supports: "recap")
     updated.worth_keeping = try validate(result.worth_keeping ?? [], supports: "worth_keeping")
-    updated.generated_by = "local_mlx"; updated.updated_at = Clock.ms
+    updated.generated_by = ModelManager.extractorID; updated.updated_at = Clock.ms
     return updated
   }
   /// Consolidate already cited chunk summaries without dropping the first chunks.

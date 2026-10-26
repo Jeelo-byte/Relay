@@ -243,7 +243,7 @@ private struct MacRecapsView: View {
                 Text(recap.title).font(.system(size: 20, weight: .bold))
                 Text(recap.summary).font(.system(size: 13)).lineLimit(5)
                 HStack {
-                  SourceBadge(title: recap.generated_by == "local_mlx" ? "Local AI · Review sources" : "Quoted highlights")
+                  SourceBadge(title: recap.isLocalAI ? "Local AI · Review sources" : "Quoted highlights")
                   Spacer()
                   Image(systemName: "chevron.right").font(.system(size: 10)).foregroundStyle(RelayTheme.accentText)
                 }

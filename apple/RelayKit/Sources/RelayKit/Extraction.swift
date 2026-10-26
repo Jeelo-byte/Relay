@@ -226,7 +226,7 @@ public enum Extraction {
     }
     a.covered_event_ids = window.messages.values.map(\.event_id)
     a.source_room_ids = Array(Set(window.messages.values.map(\.room_id)))
-    a.provenance.extractor = "local_mlx"
+    a.provenance.extractor = ModelManager.extractorID
     a.provenance.model_id = ModelManager.modelID
     a.provenance.model_revision = ModelManager.revision
     a.provenance.quantization = "4bit"

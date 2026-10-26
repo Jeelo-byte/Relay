@@ -20,8 +20,8 @@ done
 import plistlib, sys
 with open(sys.argv[1], 'wb') as f:
     plistlib.dump({'CFBundleExecutable':'Relay', 'CFBundleIdentifier':'app.relay.agreements',
-      'CFBundleName':'Relay', 'CFBundleIconFile':'Relay', 'CFBundlePackageType':'APPL', 'CFBundleShortVersionString':'0.4.1',
-      'CFBundleVersion':'8', 'LSMinimumSystemVersion':'14.0',
+      'CFBundleName':'Relay', 'CFBundleIconFile':'Relay', 'CFBundlePackageType':'APPL', 'CFBundleShortVersionString':'0.4.2',
+      'CFBundleVersion':'9', 'LSMinimumSystemVersion':'14.0',
       'NSHighResolutionCapable':True, 'NSFaceIDUsageDescription':'Unlock your private Relay agreements.',
       'NSCameraUsageDescription':'Relay scans a pairing code to securely connect this device to your Relay account.',
       'NSContactsUsageDescription':'Relay imports contact names, phone numbers, and email addresses to link profiles across your messaging apps on this device.',

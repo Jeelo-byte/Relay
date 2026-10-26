@@ -152,7 +152,7 @@ struct RecapsView: View {
             Text(recap.title).font(.title2.bold())
             Text(recap.summary).font(.body).lineLimit(4)
             HStack {
-              SourceBadge(title: recap.generated_by == "local_mlx" ? "Local AI · Review Sources" : "Quoted highlights")
+              SourceBadge(title: recap.isLocalAI ? "Local AI · Review Sources" : "Quoted highlights")
               Spacer()
               Image(systemName: "chevron.right").font(.caption).foregroundStyle(RelayTheme.accentText)
             }
@@ -177,7 +177,7 @@ struct RecapDetailView: View {
           Text(recap.title).font(.largeTitle.bold())
           SourceBadge(title: "\(recap.room_name) · \(recap.day)")
           Text(recap.summary).font(.body).textSelection(.enabled)
-          Text(recap.generated_by == "local_mlx" ? "Generated on this device. Check the sources before relying on the recap." : "Exact quoted highlights. No model inference is claimed.").font(.caption).foregroundStyle(RelayTheme.muted)
+          Text(recap.isLocalAI ? "Generated on this device. Check the sources before relying on the recap." : "Exact quoted highlights. No model inference is claimed.").font(.caption).foregroundStyle(RelayTheme.muted)
           if recap.source_changed == true { Label("A source changed after this recap was saved.", systemImage: "exclamationmark.triangle").foregroundStyle(RelayTheme.warning) }
           if let keeping = recap.worth_keeping, !keeping.isEmpty {
             Text("Worth keeping").font(.title2.bold())

@@ -971,7 +971,7 @@ extension RelayStore {
         }
         review.covered_event_ids = window.messages.values.map(\.event_id)
         review.source_room_ids = [room.id]
-        review.provenance.extractor = "local_mlx"
+        review.provenance.extractor = ModelManager.extractorID
         review.provenance.model_id = ModelManager.modelID
         save(review)
         self.error =

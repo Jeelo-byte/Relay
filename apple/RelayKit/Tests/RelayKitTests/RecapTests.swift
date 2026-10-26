@@ -15,7 +15,7 @@ final class RecapTests: XCTestCase {
     let good = #"{"title":"Coffee","summary":"Maya suggested coffee.","evidence":[{"m":"m1","quote":"Coffee at ten?"}]}"#
     let generated = try RecapEngine.apply(good, to: recaps[0], messages: [a])
     XCTAssertEqual(generated.id, recaps[0].id)
-    XCTAssertEqual(generated.generated_by, "local_mlx")
+    XCTAssertEqual(generated.generated_by, ModelManager.extractorID)
     XCTAssertThrowsError(try RecapEngine.apply(good.replacingOccurrences(of: "Coffee at ten?", with: "Pay $100"), to: recaps[0], messages: [a]))
     XCTAssertThrowsError(try RecapEngine.apply(good.replacingOccurrences(of: "m1", with: "m99"), to: recaps[0], messages: [a]))
   }

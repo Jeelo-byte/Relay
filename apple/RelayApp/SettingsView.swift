@@ -73,7 +73,7 @@ struct WorkspaceSettingsView: View {
           Label(
             model.ready ? model.status : "Manual", systemImage: model.ready ? "cpu" : "hand.raised")
           Text(
-            ModelManager.supported ? "Gemma 4 E2B · 4-bit · runs inside Relay. Download requires several GB and an Apple Silicon device. No chat text is sent to a model provider." : "Manual mode is fully available. Local Gemma needs a build made with Swift 6.2 or newer on an Apple Silicon device."
+            ModelManager.supported ? ModelManager.modelDescription : "Manual mode is fully available. Local Gemma needs a build made with Swift 6.2 or newer on an Apple Silicon device."
           ).font(.caption).foregroundStyle(RelayTheme.muted)
           if model.working {
             ProgressView(value: model.progress)

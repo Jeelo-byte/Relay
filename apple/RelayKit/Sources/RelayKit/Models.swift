@@ -222,6 +222,7 @@ public struct Provenance: Codable, Equatable, Sendable {
   public var label: String {
     switch extractor {
     case "local_mlx": "Local · Gemma 4 E2B"
+    case "local_ollama": "Local · Gemma 4 E2B"
     case "cloud": "Cloud"
     case "foundation_models": "Apple on-device"
     default: "Manual"

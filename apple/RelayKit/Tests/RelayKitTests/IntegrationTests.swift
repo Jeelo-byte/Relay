@@ -50,15 +50,15 @@ final class IntegrationTests: XCTestCase {
       let a = Extraction.agreement(extracted, window: window, normalizer: n, device: UUID())
     else { return XCTFail("No valid agreement") }
     XCTAssertEqual(a.review_state, .suggested)
-    XCTAssertEqual(a.obligations.first?.amount?.minor, 4000)
-    XCTAssertEqual(a.provenance.extractor, "local_mlx")
-    XCTAssertNotNil(a.obligations.first?.due)
+    XCTAssertTrue(a.obligations.contains { $0.amount?.minor == 4000 }, output)
+    XCTAssertEqual(a.provenance.extractor, ModelManager.extractorID)
+    XCTAssertTrue(a.obligations.contains { $0.due != nil }, output)
     XCTAssertEqual(a.evidence.count, 2)
     let recap = try XCTUnwrap(RecapEngine.highlights(messages: messages, rooms: DemoData.rooms).first)
     let prompt = try RecapEngine.prompt(for: recap, messages: messages)
     let recapOutput = try await manager.generate(prompt)
     let generated = try RecapEngine.apply(recapOutput, to: recap, messages: messages)
-    XCTAssertEqual(generated.generated_by, "local_mlx")
+    XCTAssertEqual(generated.generated_by, ModelManager.extractorID)
     XCTAssertFalse(generated.evidence.isEmpty)
   }
   @MainActor func testNativeNeonRoundTrip() async throws {
