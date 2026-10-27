@@ -23,7 +23,7 @@ cp "$assets/compose.yml" "$state/compose.yml"
 compose=(docker compose --project-name relay-messages -f "$state/compose.yml" --profile bridges)
 synapse_image="ghcr.io/element-hq/synapse@sha256:390f5e67227378eb87c84627b57f0582cdb235fcc8159d89f371f37bf7cccfd7"
 configure() {
-  docker run --rm -v "$state/private:/private" -v "$assets:/setup:ro" -e RELAY_MATRIX_PORT="${RELAY_MATRIX_PORT:-8008}" --entrypoint python "$synapse_image" /setup/configure.py "$@"
+  docker run --rm -i -v "$state/private:/private" -e RELAY_MATRIX_PORT="${RELAY_MATRIX_PORT:-8008}" --entrypoint python "$synapse_image" - "$@" < "$assets/configure.py"
 }
 if [[ ! -f "$state/private/synapse/homeserver.yaml" ]]; then
   echo 'Preparing your private message server…' >&2

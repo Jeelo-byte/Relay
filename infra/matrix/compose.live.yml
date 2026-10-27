@@ -37,3 +37,27 @@ services:
     - ./private/whatsapp:/data
     depends_on:
     - synapse
+
+  instagram:
+    image: dock.mau.dev/mautrix/meta@sha256:7a094f465d2cbd434b88b50ead134174fc7e59429a85377f5d51cd162686bf1d
+    restart: unless-stopped
+    depends_on:
+    - synapse
+    volumes:
+    - ./private/instagram:/data
+
+  gmessages:
+    image: dock.mau.dev/mautrix/gmessages@sha256:c9751d888d797dae3e351cd7a94a068b03a340a8896707d61c9d322be73866bd
+    restart: unless-stopped
+    depends_on:
+    - synapse
+    volumes:
+    - ./private/gmessages:/data
+
+  discord:
+    image: dock.mau.dev/mautrix/discord@sha256:065405ca2f961b2687ca577c4eb65592c139d641342a9611d98b5394f30cf84a
+    restart: unless-stopped
+    depends_on:
+    - synapse
+    volumes:
+    - ./private/discord:/data
