@@ -758,6 +758,11 @@ extension RelayStore {
       guard let data = try KeychainStore.read("matrix-session") else { return }
       let s = try JSONDecoder().decode(MatrixSession.self, from: data)
       let client = MatrixClient(session: s)
+      #if os(macOS)
+      if let senders = try? MessageHost.googleMessagesSelfSenders(matrixUser: s.user_id) {
+        try? await client.publishSelfSenders(senders)
+      }
+      #endif
       if matrixDiscoveredAt == nil || Date().timeIntervalSince(matrixDiscoveredAt!) >= 15 {
         let discovered = try await client.discover(joinWhatsAppInvites: includeAllWhatsApp, joining: setupServices.subtracting([.imessage]))
         guard !locked, try KeychainStore.read("matrix-session") == data else { return }
@@ -772,6 +777,11 @@ extension RelayStore {
       let response = try await client.sync(
         rooms: rooms.filter { !$0.id.hasPrefix("imessage:") }, since: next)
       guard !locked, try KeychainStore.read("matrix-session") == data else { return }
+      for index in messages.indices where messages[index].network == .gmessages
+        && messages[index].sender.id.hasPrefix("gmessages:")
+        && client.selfSenderIDs.contains(String(messages[index].sender.id.dropFirst("gmessages:".count))) {
+        messages[index].sender = .me
+      }
       applyMatrixEvents(messages: response.messages, raw: response.raw, selfUser: s.user_id)
       cacheChats()
       if matrixSelectionVersion == selectionVersion {

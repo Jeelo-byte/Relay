@@ -8,6 +8,7 @@ public struct MatrixSession: Codable, Sendable {
 public final class MatrixClient {
   public let session: MatrixSession
   public private(set) var managementRoomIDs: Set<String> = []
+  public private(set) var selfSenderIDs: Set<String> = []
   public init(session: MatrixSession) { self.session = session }
   static func imageRequest(session: MatrixSession, mxc: String) throws -> URLRequest {
     guard let media = URLComponents(string: mxc), media.scheme == "mxc",
@@ -114,6 +115,29 @@ public final class MatrixClient {
   static func events(_ object: [String: Any], key: String) -> [[String: Any]] {
     (object[key] as? [String: Any])?["events"] as? [[String: Any]] ?? []
   }
+  public func refreshSelfSenders() async throws {
+    do {
+      let data = try await Self.request(server: session.server,
+        path: "user/\(Self.segment(session.user_id))/account_data/dev.relay.self_senders",
+        token: session.access_token)
+      selfSenderIDs = Set((data["gmessages"] as? [String] ?? []).filter {
+        $0.hasPrefix("@gmessages_") && $0.hasSuffix(":relay.local")
+      })
+    } catch let error as APIError where error.status == 404 {
+      selfSenderIDs = []
+    }
+  }
+  public func publishSelfSenders(_ senders: Set<String>) async throws {
+    let valid = senders.filter { $0.hasPrefix("@gmessages_") && $0.hasSuffix(":relay.local") }
+    guard !valid.isEmpty else { return }
+    try await refreshSelfSenders()
+    let merged = selfSenderIDs.union(valid)
+    guard merged != selfSenderIDs else { return }
+    _ = try await Self.request(server: session.server,
+      path: "user/\(Self.segment(session.user_id))/account_data/dev.relay.self_senders",
+      token: session.access_token, method: "PUT", body: ["gmessages": merged.sorted()])
+    selfSenderIDs = merged
+  }
   public func discover(joinWhatsAppInvites: Bool = false, joining services: Set<MessagingService> = []) async throws -> [ChatRoom] {
     let filter: [String: Any] = [
       "room": [
@@ -204,6 +228,7 @@ public final class MatrixClient {
   ) {
     let allowed = rooms.filter { $0.opted_in && !$0.encrypted }
     guard !allowed.isEmpty else { return ([], since ?? "", []) }
+    try await refreshSelfSenders()
     let filter: [String: Any] = [
       "room": [
         "rooms": allowed.map(\.id),
@@ -240,7 +265,8 @@ public final class MatrixClient {
         e["relay_room_id"] = roomID
         raw.append(e)
         if let m = MessageEventParser.message(
-          event, room: known, selfUser: session.user_id, members: members)
+          event, room: known, selfUser: session.user_id, members: members,
+          selfSenders: selfSenderIDs)
         {
           result.append(m)
         }
@@ -252,6 +278,7 @@ public final class MatrixClient {
     messages: [ChatMessage], end: String?
   ) {
     guard room.opted_in, !room.encrypted else { return ([], nil) }
+    try await refreshSelfSenders()
     let path =
       "rooms/\(Self.segment(room.id))/messages?dir=b&limit=50"
       + (cursor.map { "&from=" + Self.segment($0) } ?? "")
@@ -268,7 +295,8 @@ public final class MatrixClient {
       }, uniquingKeysWith: { $1 })
     return (
       chunk.compactMap {
-        MessageEventParser.message($0, room: room, selfUser: session.user_id, members: members)
+        MessageEventParser.message($0, room: room, selfUser: session.user_id, members: members,
+          selfSenders: selfSenderIDs)
       }, chunk.isEmpty ? nil : obj["end"] as? String
     )
   }

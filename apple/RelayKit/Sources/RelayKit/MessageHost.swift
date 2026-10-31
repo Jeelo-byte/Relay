@@ -1,10 +1,59 @@
 import Foundation
 
 #if os(macOS)
+import SQLite3
 public enum MessageHost {
   public static var directory: URL {
     FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
       .appendingPathComponent("Relay/MessageHost", isDirectory: true)
+  }
+  /// The bridge records the phone's own participant IDs in its local login metadata.
+  /// Reading that mapping avoids guessing from a Matrix ghost's display name.
+  static func googleMessagesSelfSenders(database: URL, matrixUser: String) throws -> Set<String> {
+    var connection: OpaquePointer?
+    guard sqlite3_open_v2(database.path, &connection, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
+      let connection else {
+      if let connection { sqlite3_close(connection) }
+      throw VaultError.invalidEnvelope
+    }
+    defer { sqlite3_close(connection) }
+    func rows(_ sql: String) throws -> [[String]] {
+      var statement: OpaquePointer?
+      guard sqlite3_prepare_v2(connection, sql, -1, &statement, nil) == SQLITE_OK,
+        let statement else { throw VaultError.invalidEnvelope }
+      defer { sqlite3_finalize(statement) }
+      var values: [[String]] = []
+      var status = sqlite3_step(statement)
+      while status == SQLITE_ROW {
+        values.append((0..<sqlite3_column_count(statement)).map { index in
+          sqlite3_column_text(statement, index).map { String(cString: $0) } ?? ""
+        })
+        status = sqlite3_step(statement)
+      }
+      guard status == SQLITE_DONE else { throw VaultError.invalidEnvelope }
+      return values
+    }
+    let ids = try rows("SELECT user_mxid, metadata FROM user_login")
+      .filter { $0[0] == matrixUser }
+      .reduce(into: Set<String>()) { result, row in
+        guard let data = row[1].data(using: .utf8),
+          let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let participants = value["self_participant_ids"] as? [String] else { return }
+        result.formUnion(participants)
+      }
+    guard !ids.isEmpty else { return [] }
+    return Set(try rows("SELECT id FROM ghost").compactMap { row in
+      let id = row[0]
+      guard id.split(separator: ".").last.map(String.init).map(ids.contains) == true,
+        id.range(of: "^[a-zA-Z0-9._=-]+$", options: .regularExpression) != nil
+      else { return nil }
+      return "@gmessages_\(id):relay.local"
+    })
+  }
+  public static func googleMessagesSelfSenders(matrixUser: String) throws -> Set<String> {
+    try googleMessagesSelfSenders(
+      database: directory.appendingPathComponent("private/gmessages/bridge.db"),
+      matrixUser: matrixUser)
   }
   /// Only a packaged, fixed script is executed. Telegram API credentials use a temporary private file.
   public static func prepare(services: Set<MessagingService>, telegramAPIID: String = "", telegramAPIHash: String = "") async throws -> MatrixSession {
