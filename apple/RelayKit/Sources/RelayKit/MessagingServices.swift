@@ -132,7 +132,8 @@ public enum MessageEventParser {
     return MessagingService.identify(protocolID: fallback)
   }
   public static func message(
-    _ event: [String: Any], room: ChatRoom, selfUser: String, members: [String: String]
+    _ event: [String: Any], room: ChatRoom, selfUser: String, members: [String: String],
+    selfSenders: Set<String> = []
   ) -> ChatMessage? {
     guard let eventID = event["event_id"] as? String, let sender = event["sender"] as? String else {
       return nil
@@ -154,7 +155,7 @@ public enum MessageEventParser {
     if relation["rel_type"] as? String == "m.replace" { return nil }
     let service = room.service ?? MessagingService.identify(protocolID: "", sender: sender)
     let network = service?.network ?? room.network
-    let isSelf = sender == selfUser
+    let isSelf = sender == selfUser || (service == .gmessages && selfSenders.contains(sender))
     let party =
       isSelf
       ? Party.me

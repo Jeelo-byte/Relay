@@ -97,6 +97,13 @@ chats remain off until selected. Existing WhatsApp Include All and per-chat paus
 keep their previous behavior. The common Matrix sender and encrypted local outbox
 handle replies for all bridged services with stable transaction IDs.
 
+Google Messages can represent texts sent from the linked phone as bridge ghost
+events. On the Mac message host, Relay reads the bridge's own participant IDs
+and saves the corresponding Matrix sender IDs in that Matrix account's private
+account data. Relay uses the mapping on Mac and iPhone to label those texts as
+yours, including previously cached messages. The mapping contains sender IDs,
+not message contents.
+
 A successful Matrix submission means the local server accepted the text; the
 original service determines delivery. Receive a new incoming text and verify a
 confirmed reply in each original app before considering the account fully tested.
