@@ -16,13 +16,7 @@ struct ConnectionsView: View {
       if service == .imessage { IMessageConnectView() }
       else if service == .whatsapp {
         GuidedWhatsAppSetupView(onClose: { selected = nil }, onMessages: { selected = nil })
-      } else if MessagingService.onboarding.contains(service) { BridgeConnectView(service: service) }
-      else {
-        NavigationStack {
-          ScrollView { bridgeSetup(service).padding(24) }.navigationTitle(service.name)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { selected = nil } } }
-        }
-      }
+      } else { BridgeConnectView(service: service) }
     }
   }
   private var services: some View {
@@ -46,24 +40,6 @@ struct ConnectionsView: View {
       Text(
         "Link accounts on your Mac. Relay includes only the chats you choose. Replies are sent only after you review and confirm them."
       ).font(.caption).foregroundStyle(RelayTheme.muted)
-    }
-  }
-  private func bridgeSetup(_ service: MessagingService) -> some View {
-    VStack(alignment: .leading, spacing: 24) {
-      SettingsCard("Account setup") {
-        Text(service.setupHint)
-        Text("The local bridge service is prepared separately from your account. Open the bridge setup page on your Mac and use the bridge’s login flow.")
-          .foregroundStyle(RelayTheme.muted)
-        Text(service.bot).font(.system(.subheadline, design: .monospaced)).textSelection(.enabled)
-        Link("Open Bridge Setup on This Mac", destination: URL(string: "http://localhost:8088")!)
-          .buttonStyle(.borderedProminent)
-        Link("Mautrix Setup Documentation", destination: URL(string: "https://docs.mau.fi/bridges/")!)
-      }
-      SettingsCard("Choose what Relay can see") {
-        Text("After linking, refresh the message server and turn on the chats you want. Every live chat starts off.")
-        Text("Messages are decrypted by the bridge on your Mac. Neon receives encrypted agreement records, not your message history.")
-          .font(.caption).foregroundStyle(RelayTheme.muted)
-      }
     }
   }
   func status(_ service: MessagingService) -> String {

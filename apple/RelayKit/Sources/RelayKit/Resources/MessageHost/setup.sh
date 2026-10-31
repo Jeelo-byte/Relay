@@ -4,9 +4,14 @@ set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 assets="$(cd "$(dirname "$0")" && pwd)"
 state="${1:?Choose a private host directory}"; shift
+telegram_credential="telegram-credentials-00000000.json"
+if [[ "${1:-}" == "--telegram-credential" ]]; then
+  telegram_credential="${2:-}"; shift 2
+fi
+[[ "$telegram_credential" =~ ^telegram-credentials-[A-Fa-f0-9-]+\.json$ ]] || { echo 'Invalid setup credential pointer.' >&2; exit 1; }
 [[ $# -gt 0 ]] || { echo 'Choose at least one Docker connection.' >&2; exit 1; }
 for service in "$@"; do
-  case "$service" in whatsapp|instagram|gmessages|discord) ;; *) echo 'Unsupported connection.' >&2; exit 1;; esac
+  case "$service" in whatsapp|telegram|discord|signal|slack|gmessages|messenger|instagram) ;; *) echo 'Unsupported connection.' >&2; exit 1;; esac
 done
 command -v docker >/dev/null || { echo 'Install Docker Desktop, then retry setup.' >&2; exit 1; }
 if ! docker info >/dev/null 2>&1; then
@@ -23,7 +28,7 @@ cp "$assets/compose.yml" "$state/compose.yml"
 compose=(docker compose --project-name relay-messages -f "$state/compose.yml" --profile bridges)
 synapse_image="ghcr.io/element-hq/synapse@sha256:390f5e67227378eb87c84627b57f0582cdb235fcc8159d89f371f37bf7cccfd7"
 configure() {
-  docker run --rm -i -v "$state/private:/private" -e RELAY_MATRIX_PORT="${RELAY_MATRIX_PORT:-8008}" --entrypoint python "$synapse_image" - "$@" < "$assets/configure.py"
+  docker run --rm -i -v "$state/private:/private" -e RELAY_MATRIX_PORT="${RELAY_MATRIX_PORT:-8008}" -e RELAY_TELEGRAM_CREDENTIAL_FILE="$telegram_credential" --entrypoint python "$synapse_image" - "$@" < "$assets/configure.py"
 }
 if [[ ! -f "$state/private/synapse/homeserver.yaml" ]]; then
   echo 'Preparing your private message server…' >&2

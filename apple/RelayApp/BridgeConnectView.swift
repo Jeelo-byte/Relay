@@ -34,55 +34,93 @@ struct BridgeConnectView: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 24) {
-          Text("1. Link \(service.name)").font(.title2.bold())
-          Text(service.pairingInstructions).foregroundStyle(RelayTheme.muted).textSelection(.enabled)
-          if service == .gmessages {
-            Link("Open Google account pairing", destination: URL(string: "https://accounts.google.com/AccountChooser?continue=https://messages.google.com/web/config")!)
-            Text("Use a private Firefox window for manual cookie pairing. Google account cookies tied to multiple accounts or device-bound sessions may fail.").font(.caption)
+          HStack(spacing: 12) {
+            Image(systemName: service.symbol).font(.title2).foregroundStyle(RelayTheme.accentText)
+            Text(service.name.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(RelayTheme.accentText)
           }
-          HStack {
-            Button("Start Account Linking") { Task { await start() } }.buttonStyle(.borderedProminent).disabled(busy)
-            Button("Check Connection") { Task { await start(command: "ping") } }.disabled(busy)
-            Button("Server Settings") { serverSettings = true }
+          Text("Connect \(service.name)").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+          Text("Link your account, choose conversations, then check a real message.")
+            .foregroundStyle(RelayTheme.muted)
+
+          RelayPanel {
+            VStack(alignment: .leading, spacing: 16) {
+              stepTitle("1", "Link your account", symbol: "link")
+              Text(service.pairingInstructions).foregroundStyle(RelayTheme.muted).textSelection(.enabled)
+              if service == .telegram {
+                Text("Telegram requires your own API ID and hash in the private bridge configuration on the Mac before linking.")
+                  .font(.footnote).foregroundStyle(RelayTheme.warning)
+              }
+              if service == .gmessages {
+                Link("Open Google account pairing", destination: URL(string: "https://accounts.google.com/AccountChooser?continue=https://messages.google.com/web/config")!)
+                Text("Use a private Firefox window. Device-bound Google sessions may not work with manual pairing.")
+                  .font(.footnote).foregroundStyle(RelayTheme.muted)
+              }
+              ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { linkActions }
+                VStack(alignment: .leading, spacing: 12) { linkActions }
+              }
+              if busy { ProgressView("Contacting \(service.name)…") }
+              if let imageData {
+                #if os(macOS)
+                if let image = NSImage(data: imageData) { Image(nsImage: image).resizable().interpolation(.none).scaledToFit().frame(maxWidth: 280).accessibilityLabel("Private account pairing code") }
+                #else
+                if let image = UIImage(data: imageData) { Image(uiImage: image).resizable().interpolation(.none).scaledToFit().frame(maxWidth: 280).accessibilityLabel("Private account pairing code") }
+                #endif
+              }
+              ForEach(responses.filter { !$0.text.isEmpty }.suffix(4)) { response in
+                Text(response.text).textSelection(.enabled).font(.subheadline).padding(12)
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  .background(RelayTheme.secondarySurface, in: RoundedRectangle(cornerRadius: 12))
+              }
+              if room != nil {
+                SecureField(service == .slack ? "login token <token> <cookie>" : "Bridge response, cookies, or verification code", text: $input)
+                  .textFieldStyle(.roundedBorder).autocorrectionDisabled()
+                Text("Submit only what the bridge asks for. Login data goes to your private setup room on your message server.")
+                  .font(.footnote).foregroundStyle(RelayTheme.muted)
+                Button("Submit to \(service.name) Bridge") { Task { await submit() } }
+                  .disabled(busy || input.isEmpty)
+              }
+              Link("\(service.name) login instructions", destination: service.documentationURL)
+            }.frame(maxWidth: .infinity, alignment: .leading)
           }
-          if busy { ProgressView("Contacting \(service.name)…") }
-          if let imageData {
-            #if os(macOS)
-            if let image = NSImage(data: imageData) { Image(nsImage: image).resizable().interpolation(.none).scaledToFit().frame(maxWidth: 280).accessibilityLabel("Private account pairing code") }
-            #else
-            if let image = UIImage(data: imageData) { Image(uiImage: image).resizable().interpolation(.none).scaledToFit().frame(maxWidth: 280).accessibilityLabel("Private account pairing code") }
-            #endif
+
+          RelayPanel {
+            VStack(alignment: .leading, spacing: 16) {
+              stepTitle("2", "Choose conversations", symbol: "checkmark.circle")
+              Text("Only selected conversations are included.").foregroundStyle(RelayTheme.muted)
+              Button("Refresh Conversations") { Task { await store.refreshBridgeChats(service: service) } }.disabled(busy)
+              TextField("Find a conversation", text: $search).textFieldStyle(.roundedBorder)
+              if chats.isEmpty {
+                Text("Chats appear after linking. Refresh again as the bridge discovers them.")
+                  .foregroundStyle(RelayTheme.muted)
+              }
+              LazyVStack(spacing: 12) {
+                ForEach(chats.filter { search.isEmpty || store.matchesConversation($0, query: search) }) { chat in
+                  Toggle(store.roomName(for: chat), isOn: Binding(
+                    get: { store.rooms.first { $0.id == chat.id }?.opted_in ?? false },
+                    set: { store.setOptIn(chat.id, $0) }))
+                    .padding(12).background(RelayTheme.secondarySurface, in: RoundedRectangle(cornerRadius: 12))
+                }
+              }
+              Text("Pause any conversation here at any time.").font(.footnote).foregroundStyle(RelayTheme.muted)
+            }.frame(maxWidth: .infinity, alignment: .leading)
           }
-          ForEach(responses.filter { !$0.text.isEmpty }.suffix(4)) { response in
-            Text(response.text).textSelection(.enabled).font(.subheadline).padding(12)
-              .frame(maxWidth: .infinity, alignment: .leading).background(RelayTheme.secondarySurface)
+
+          RelayPanel {
+            VStack(alignment: .leading, spacing: 16) {
+              stepTitle("3", "Check delivery", symbol: "message.fill")
+              Text(incoming == nil ? "Ask someone to send a new text to an included conversation. Then review and confirm a reply in Messages." : "A new incoming text arrived in Relay. Review and confirm a reply in Messages.")
+                .foregroundStyle(RelayTheme.muted)
+              if let incoming {
+                Label("Incoming text from \(incoming.sender.display_name_snapshot) received", systemImage: "checkmark.circle.fill")
+                  .foregroundStyle(RelayTheme.success)
+              }
+              Button("Check for New Text") { Task { await store.syncMatrix() } }
+              Text("Check the reply in \(service.name). A message server receipt alone does not confirm delivery there.")
+                .font(.footnote).foregroundStyle(RelayTheme.muted)
+            }.frame(maxWidth: .infinity, alignment: .leading)
           }
-          if room != nil {
-            SecureField("Bridge response, cookies, or verification code", text: $input).textFieldStyle(.roundedBorder)
-              .autocorrectionDisabled()
-            Text("Submit only what the bridge requests. Login data goes to your private setup chat on your message server. It is not sent to a contact or saved in Relay’s message history.")
-              .font(.caption).foregroundStyle(RelayTheme.muted)
-            Button("Submit to \(service.name) Bridge") { Task { await submit() } }.disabled(busy || input.isEmpty)
-          }
-          Link("\(service.name) login instructions", destination: service.documentationURL)
-          Divider()
-          Text("2. Choose conversations").font(.title2.bold())
-          Button("Refresh Conversations") { Task { await store.refreshBridgeChats(service: service) } }.disabled(busy)
-          TextField("Search conversations", text: $search).textFieldStyle(.roundedBorder)
-          if chats.isEmpty { Text("Chats appear after account linking. Refresh again as the bridge discovers them.").foregroundStyle(RelayTheme.muted) }
-          ForEach(chats.filter { search.isEmpty || store.matchesConversation($0, query: search) }) { chat in
-            Toggle(store.roomName(for: chat), isOn: Binding(
-              get: { store.rooms.first { $0.id == chat.id }?.opted_in ?? false },
-              set: { store.setOptIn(chat.id, $0) }))
-          }
-          Text("Only included chats are read by Relay. You can pause them here any time.").font(.caption).foregroundStyle(RelayTheme.muted)
-          Divider()
-          Text("3. Check two-way texting").font(.title2.bold())
-          Text(incoming == nil ? "Ask someone to send a new text to an included chat. Then open that conversation in Relay, review a reply, and confirm sending it. Check the reply in the original app." : "A new incoming text arrived in Relay. Open Messages, review a reply, and confirm sending it. Check the reply in the original app.")
-          if incoming != nil { Label("Incoming text received", systemImage: "checkmark.circle") }
-          Button("Check for New Text") { Task { await store.syncMatrix() } }
-          Text("A Matrix submission confirms the message server accepted your reply. Verify recipient delivery in \(service.name).").font(.caption).foregroundStyle(RelayTheme.muted)
-          if let issue { Text(issue).foregroundStyle(RelayTheme.danger) }
+          if let issue { Label(issue, systemImage: "exclamationmark.circle").foregroundStyle(RelayTheme.danger) }
         }.padding(28).frame(maxWidth: 720).frame(maxWidth: .infinity)
       }.background(RelayTheme.background).navigationTitle("Connect \(service.name)")
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -101,6 +139,20 @@ struct BridgeConnectView: View {
     #if os(macOS)
     .frame(minWidth: 700, idealWidth: 800, minHeight: 650)
     #endif
+  }
+  @ViewBuilder private var linkActions: some View {
+    Button(service == .slack ? "Open Slack Setup" : "Start Account Linking") { Task { await start() } }
+      .buttonStyle(.borderedProminent).disabled(busy)
+    Button("Check Connection") { Task { await start(command: "ping") } }.disabled(busy)
+    Button("Server Settings") { serverSettings = true }
+  }
+  private func stepTitle(_ number: String, _ title: String, symbol: String) -> some View {
+    HStack(spacing: 12) {
+      Image(systemName: symbol).foregroundStyle(RelayTheme.accentText).frame(width: 28)
+      Text(title).font(.title2.bold())
+      Spacer()
+      Text(number).font(.caption.weight(.semibold)).foregroundStyle(RelayTheme.muted)
+    }.accessibilityAddTraits(.isHeader)
   }
   private func clearPrivateState() { imageData = nil; imageEvent = nil; input = ""; responses = [] }
   private func start(command: String? = nil) async {

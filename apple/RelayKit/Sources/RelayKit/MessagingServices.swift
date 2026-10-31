@@ -32,7 +32,7 @@ public enum MessagingService: String, Codable, CaseIterable, Identifiable, Senda
   }
   public var bot: String {
     switch self {
-    case .messenger: "@metabot:relay.local"
+    case .messenger: "@facebookbot:relay.local"
     default: "@\(rawValue)bot:relay.local"
     }
   }
@@ -40,22 +40,25 @@ public enum MessagingService: String, Codable, CaseIterable, Identifiable, Senda
     switch self {
     case .imessage: "Read and reply to chosen conversations through Messages on this Mac. Full Disk Access and Automation access are required."
     case .whatsapp: "Link a device by scanning its QR code with WhatsApp."
-    case .telegram: "Add your Telegram API ID/hash, then sign in with your phone and login code."
+    case .telegram: "Add your Telegram API ID and hash to the bridge host, then scan a login code from Telegram."
     case .discord: "Sign in through the Discord bridge’s account-linking flow."
     case .signal: "Link Signal as another device using its QR code."
-    case .slack: "Use the Slack bridge’s workspace login flow for each workspace."
+    case .slack: "Link each Slack workspace using its web token and d cookie, or a workspace app."
     case .gmessages: "Sign in with your Google account, then approve the matching emoji in Google Messages on your Android phone. Keep your phone online."
-    case .messenger: "Use the Messenger bridge’s supported login flow on your Mac."
+    case .messenger: "Sign in to Messenger in a private browser window, then provide the requested cookies."
     case .instagram: "Use the separate Instagram bridge’s supported login flow on your Mac."
     }
   }
 
-  public static let onboarding: [MessagingService] = [.whatsapp, .instagram, .gmessages, .discord, .imessage]
+  public static let onboarding: [MessagingService] = [.whatsapp, .telegram, .discord, .signal, .slack, .gmessages, .messenger, .instagram, .imessage]
   public var loginCommand: String {
     switch self {
     case .discord: "login-qr"
     case .gmessages: "login google"
     case .instagram: "login instagram"
+    case .signal: "login"
+    case .messenger: "login messenger"
+    case .slack: "help"
     default: "login qr"
     }
   }
@@ -64,6 +67,10 @@ public enum MessagingService: String, Codable, CaseIterable, Identifiable, Senda
     case .discord: "Open Discord on your phone, scan the code, and approve the login. If Discord requests a CAPTCHA, use the bridge documentation for another login method."
     case .gmessages: "In a private browser window, sign in to accounts.google.com/AccountChooser?continue=https://messages.google.com/web/config. Copy the /web/config request as cURL from developer tools and submit it below when the bridge asks. Then approve the matching emoji on your phone."
     case .instagram: "Sign in to instagram.com in a private browser window. In developer tools → Network, copy an authenticated request as cURL. Submit it below when the bridge asks for cookies. Complete any account verification in Instagram."
+    case .telegram: "First configure a Telegram API ID and hash on your message host. Then open Telegram → Settings → Devices → Link Desktop Device and scan the code. Send a two-factor password below if Telegram asks."
+    case .signal: "Open Signal → Settings → Linked Devices → Link New Device, then scan the code below. Chats without history transfer may appear when new messages arrive."
+    case .slack: "Open Slack in a private browser window. Get your workspace’s xoxc token and xoxd d cookie, then enter login token <token> <cookie> below. The bridge also supports login app for workspace app credentials."
+    case .messenger: "Sign in to messenger.com in a private browser window. Copy an authenticated request as cURL from browser developer tools and submit it below when the bridge asks for cookies. Complete any account check in Messenger."
     default: setupHint
     }
   }
