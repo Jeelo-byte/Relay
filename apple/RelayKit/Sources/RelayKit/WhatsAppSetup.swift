@@ -55,17 +55,35 @@ extension MatrixClient {
   }
   public func managementRoom(service: MessagingService) async throws -> String {
     guard service != .imessage else { throw VaultError.invalidEnvelope }
-    let filter: [String: Any] = ["room": ["timeline": ["limit": 0], "state": ["types": ["m.room.member", "m.bridge", "uk.half-shot.bridge", "m.room.encryption"]]]]
+    let filter: [String: Any] = ["room": ["timeline": ["limit": 0], "state": ["types": ["m.room.member", "m.room.create", "m.bridge", "uk.half-shot.bridge", "m.room.encryption"]]]]
     let sync = try await Self.request(server: session.server, path: "sync?timeout=0&filter=\(Self.query(filter))", token: session.access_token)
     let joined = (sync["rooms"] as? [String: Any])?["join"] as? [String: [String: Any]] ?? [:]
-    if let existing = joined.first(where: { _, room in
+    let candidates = joined.filter { _, room in
       Self.isManagementRoom(Self.events(room, key: "state"), service: service, user: session.user_id)
-    }) { return existing.key }
+    }
+    if !candidates.isEmpty {
+      var ranked: [(id: String, lastBot: Int64, created: Int64)] = []
+      for (id, room) in candidates {
+        let path = "rooms/\(Self.segment(id))/messages?dir=b&limit=50"
+        let history = try? await Self.request(server: session.server, path: path, token: session.access_token)
+        let lastBot = ((history?["chunk"] as? [[String: Any]]) ?? [])
+          .filter { $0["sender"] as? String == service.bot }
+          .compactMap { $0["origin_server_ts"] as? Int64 }.max() ?? 0
+        let created = Self.events(room, key: "state")
+          .filter { $0["type"] as? String == "m.room.create" }
+          .compactMap { $0["origin_server_ts"] as? Int64 }.max() ?? 0
+        ranked.append((id, lastBot, created))
+      }
+      return Self.preferredManagementRoom(ranked)!
+    }
     let result = try await Self.request(server: session.server, path: "createRoom", token: session.access_token, method: "POST", body: [
       "preset": "private_chat", "invite": [service.bot], "is_direct": true, "name": "Relay · \(service.name) setup"
     ])
     guard let id = result["room_id"] as? String else { throw VaultError.invalidEnvelope }
     return id
+  }
+  static func preferredManagementRoom(_ rooms: [(id: String, lastBot: Int64, created: Int64)]) -> String? {
+    rooms.max { ($0.lastBot, $0.created, $0.id) < ($1.lastBot, $1.created, $1.id) }?.id
   }
   @discardableResult public func requestWhatsAppPairing(room: String, command: String = "login qr") async throws -> Int64 {
     guard ["login qr", "ping"].contains(command) else { throw VaultError.invalidEnvelope }

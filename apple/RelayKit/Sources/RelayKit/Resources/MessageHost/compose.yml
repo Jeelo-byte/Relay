@@ -16,6 +16,42 @@ services:
     - bridges
     volumes:
     - ./private/discord:/data
+  telegram:
+    image: dock.mau.dev/mautrix/telegram@sha256:53a83c1c6c5b4e350b5b0d3e4898a56a7b05290babd182b0fc29dbf95fd2207f
+    restart: unless-stopped
+    depends_on:
+    - synapse
+    profiles:
+    - bridges
+    volumes:
+    - ./private/telegram:/data
+  signal:
+    image: dock.mau.dev/mautrix/signal@sha256:bb4eab80e33a9ffe5ce8ec5c92766e436148f15a35d9a8a962b2afe0d3e3b53e
+    restart: unless-stopped
+    depends_on:
+    - synapse
+    profiles:
+    - bridges
+    volumes:
+    - ./private/signal:/data
+  slack:
+    image: dock.mau.dev/mautrix/slack@sha256:d2cb3f89d020adb936f39026466b2608e917433ba2dc8f7969dce9630ba25ca9
+    restart: unless-stopped
+    depends_on:
+    - synapse
+    profiles:
+    - bridges
+    volumes:
+    - ./private/slack:/data
+  messenger:
+    image: dock.mau.dev/mautrix/meta@sha256:7a094f465d2cbd434b88b50ead134174fc7e59429a85377f5d51cd162686bf1d
+    restart: unless-stopped
+    depends_on:
+    - synapse
+    profiles:
+    - bridges
+    volumes:
+    - ./private/messenger:/data
   element:
     image: vectorim/element-web@sha256:f8700633d4336258af7a05b53865a4f479e0d628cf2d9ca83d28b5939314d4ce
     restart: unless-stopped

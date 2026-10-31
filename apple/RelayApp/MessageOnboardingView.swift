@@ -13,11 +13,11 @@ struct MessageOnboardingView: View {
       VStack(alignment: .leading, spacing: 24) {
         RelayBrand()
         HStack {
-          Text(choosing ? "What do you want to connect?" : "Connect your accounts.").font(.largeTitle.bold())
+          Text(choosing ? "Connect your apps" : "Connect your accounts.").font(.largeTitle.bold())
           Spacer()
           Button("Set Up Later", action: onClose)
         }
-        Text("Choose your apps. Relay will guide you through linking each account and choosing conversations. You review every reply before sending it.")
+        Text(choosing ? "Start with one. Add more any time." : "Link each account, then choose its conversations. You review every reply before sending it.")
           .foregroundStyle(RelayTheme.muted)
         if choosing {
           ForEach(MessagingService.onboarding) { service in
@@ -26,7 +26,7 @@ struct MessageOnboardingView: View {
             })) {
               Label(service.name, systemImage: service.symbol).font(.headline)
               Text(service.setupHint).font(.caption).foregroundStyle(RelayTheme.muted)
-            }.padding(16).background(RelayTheme.surface, in: RoundedRectangle(cornerRadius: 12))
+            }.padding(16).background(RelayTheme.surface, in: RoundedRectangle(cornerRadius: RelayTheme.cardRadius))
           }
           Button("Continue") {
             store.selectSetupServices(selected)
@@ -60,6 +60,8 @@ struct MessageHostSetupView: View {
   @State private var prepared = false
   @State private var serverSettings = false
   @State private var existingServer = false
+  @State private var telegramAPIID = ""
+  @State private var telegramAPIHash = ""
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       Label("Your message server", systemImage: "desktopcomputer").font(.headline)
@@ -72,12 +74,23 @@ struct MessageHostSetupView: View {
       }
       if busy { ProgressView("Preparing your message server… Keep Relay open.") }
       if prepared { Label("Message server ready. Link your accounts below.", systemImage: "checkmark.circle") }
+      if services.contains(.telegram) && !existingServer {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Telegram API credentials").font(.headline)
+          Text("Get an API ID and hash at my.telegram.org. Relay saves them in the private Telegram bridge configuration on this Mac.")
+            .font(.caption).foregroundStyle(RelayTheme.muted)
+          TextField("API ID", text: $telegramAPIID).textFieldStyle(.roundedBorder)
+          SecureField("API hash", text: $telegramAPIHash).textFieldStyle(.roundedBorder)
+        }
+      }
       HStack {
         if !existingServer { Button(busy ? "Preparing…" : "Prepare Message Server") {
           busy = true; issue = nil
           Task {
             do {
-              let session = try await MessageHost.prepare(services: services)
+              let session = try await MessageHost.prepare(services: services,
+                telegramAPIID: telegramAPIID, telegramAPIHash: telegramAPIHash)
+              telegramAPIHash = ""
               guard !store.locked else { busy = false; return }
               let discovered = try await MatrixClient(session: session).discover()
               try store.connectMatrix(session, discovered: discovered)
@@ -86,7 +99,8 @@ struct MessageHostSetupView: View {
             } catch { issue = error.localizedDescription }
             busy = false
           }
-        }.buttonStyle(.borderedProminent).disabled(busy) }
+        }.buttonStyle(.borderedProminent)
+          .disabled(busy || (services.contains(.telegram) && (telegramAPIID.isEmpty || telegramAPIHash.isEmpty))) }
         Button(existingServer ? "Server Settings" : "Use Existing Server") { serverSettings = true }.disabled(busy)
       }
       Link("Install Docker Desktop", destination: URL(string: "https://www.docker.com/products/docker-desktop/")!)

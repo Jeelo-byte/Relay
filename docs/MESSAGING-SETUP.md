@@ -1,13 +1,15 @@
 # Messaging onboarding
 
-Relay's first-launch setup asks which apps to connect: WhatsApp, Instagram,
-Google Messages, Discord, and iMessage. Reopen it from Settings → Set Up Messaging
+Relay's first-launch setup asks which apps to connect: WhatsApp, Telegram,
+Discord, Signal, Slack, Google Messages, Messenger, Instagram, and iMessage. Reopen it from Settings → Set Up Messaging
 Apps. Existing WhatsApp pairing and chat inclusion settings are retained.
 
 ## Fresh Mac: prepare the message server
 
 1. Install Docker Desktop. Open Relay and select your apps.
-2. Choose **Prepare Message Server**. Relay opens Docker if needed, downloads
+2. For Telegram, enter the API ID and hash from [my.telegram.org](https://my.telegram.org).
+   Relay saves them only in the private Telegram bridge configuration. Then choose
+   **Prepare Message Server**. Relay opens Docker if needed, downloads
    pinned images, generates private configuration and bridge registrations, starts
    Synapse and only the selected bridges, and saves the Matrix session in Keychain.
 3. Open each app in the setup list to link its account and select conversations.
@@ -35,15 +37,17 @@ cannot inherit a WhatsApp device session from another host automatically.
 For maintainers using this repository's existing `infra/matrix/private` local stack:
 
 ```sh
-# In the existing Python environment with PyYAML installed:
-python scripts/prepare-bridges.py --services instagram gmessages discord
-bash scripts/live-docker.sh --profile bridges up -d instagram gmessages discord
+# In the existing Python environment with PyYAML installed, choose the bridges you need:
+python scripts/prepare-bridges.py --services telegram discord signal slack gmessages meta instagram
+bash scripts/live-docker.sh --profile bridges up -d telegram discord signal slack gmessages meta instagram
 bash scripts/live-docker.sh restart synapse
 ```
 
 This adds selected registrations without dropping other registrations or replacing
-an existing bridge database. Instagram is configured separately with its own bot,
-application-service ID and Matrix user namespace. Account login is still required.
+an existing bridge database. `meta` is the Messenger bridge on this existing
+stack; new native hosts use the service name `messenger`. Telegram requires your
+API ID and hash in its private bridge configuration before it starts. Instagram
+has its own bot and Matrix namespace. Account login is still required.
 The optional PostgreSQL live stack requires its existing deployment workflow.
 
 ## Link each account
@@ -60,6 +64,19 @@ The optional PostgreSQL live stack requires its existing deployment workflow.
 - **Instagram:** follow the in-app instructions to obtain authenticated cookies
   from a private browser login. Submit the requested JSON or cURL text to the bridge.
   Complete any account verification in Instagram.
+- **Telegram:** enter your API ID and hash during host setup, then choose Start
+  Account Linking. In Telegram on your phone, open Settings → Devices → Link
+  Desktop Device and scan the code. Send your two-factor password if prompted.
+- **Signal:** choose Start Account Linking, then use Signal → Settings → Linked
+  Devices → Link New Device to scan the code. Without history transfer, chats may
+  appear only when new messages arrive.
+- **Slack:** choose Open Slack Setup. In a private browser window, obtain the
+  workspace's `xoxc` token and `xoxd` `d` cookie. Enter
+  `login token <token> <cookie>` in the private setup field. The bridge also
+  supports `login app` for a workspace app.
+- **Messenger:** choose Start Account Linking, sign in at messenger.com in a
+  private browser window, and send the requested authenticated cURL request or
+  cookies to the private setup room. Complete any account check in Messenger.
 - **iMessage:** sign in to Messages on the Mac, enable Full Disk Access for Relay,
   and restart Relay if macOS requires it. Refresh conversations and include the
   ones you want. The first confirmed send requires Automation access to Messages.
@@ -108,6 +125,10 @@ remote contact and do not prove delivery through an unlinked external account.
 Other native tests cover setup persistence, consent, private-room checks,
 stale/wrong-bot responses, and pairing-code expiry.
 
-References: [Discord authentication](https://docs.mau.fi/bridges/go/discord/authentication.html),
+References: [Telegram authentication](https://docs.mau.fi/bridges/go/telegram/authentication.html),
+[Signal authentication](https://docs.mau.fi/bridges/go/signal/authentication.html),
+[Slack authentication](https://docs.mau.fi/bridges/go/slack/authentication.html),
+[Messenger authentication](https://docs.mau.fi/bridges/go/meta/authentication.html),
+[Discord authentication](https://docs.mau.fi/bridges/go/discord/authentication.html),
 [Google Messages authentication](https://docs.mau.fi/bridges/go/gmessages/authentication.html),
 [Instagram authentication](https://docs.mau.fi/bridges/go/meta/authentication.html).

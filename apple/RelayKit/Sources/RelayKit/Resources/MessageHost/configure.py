@@ -7,7 +7,9 @@ import sys
 import yaml
 
 PRIVATE = Path('/private')
-PORTS = {'whatsapp': 29318, 'discord': 29334, 'gmessages': 29336, 'instagram': 29320}
+PORTS = {'whatsapp': 29318, 'telegram': 29317, 'discord': 29334,
+         'signal': 29328, 'slack': 29335, 'gmessages': 29336,
+         'messenger': 29319, 'instagram': 29320}
 
 def save(path, value):
     temporary = path.with_suffix('.tmp')
@@ -68,6 +70,20 @@ def bridge(name):
         app['id'] = 'instagram'
         config['bridge']['username_template'] = 'instagram_{{.}}'
         app.setdefault('bot', {})['username'] = 'instagrambot'
+    if name == 'messenger':
+        config['network']['mode'] = 'facebook'
+        app['id'] = 'facebook'
+        app.setdefault('bot', {})['username'] = 'facebookbot'
+    if name == 'telegram':
+        supplied = PRIVATE / os.environ.get('RELAY_TELEGRAM_CREDENTIAL_FILE', 'telegram-credentials-unused.json')
+        if supplied.exists():
+            credentials = json.loads(supplied.read_text())
+            config.setdefault('network', {}).update(credentials)
+            supplied.unlink()
+        api = config.get('network', {})
+        if not api.get('api_id') or not api.get('api_hash') \
+                or api.get('api_id') == 12345 or api.get('api_hash') == 'tjyd5yge35lbodk1xwzw2jstp90k55qz':
+            raise RuntimeError('Telegram needs your own API ID and hash in the private bridge config before it can start. Get them from my.telegram.org, edit MessageHost/private/telegram/config.yaml, then retry.')
     save(path, config)
 
 def registration(name):

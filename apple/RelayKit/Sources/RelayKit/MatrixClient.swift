@@ -132,22 +132,30 @@ public final class MatrixClient {
     if !trustedServices.isEmpty {
       let invited = (sync["rooms"] as? [String: Any])?["invite"] as? [String: [String: Any]] ?? [:]
       var joinedInvite = false
+      var joinedServices = Set<MessagingService>()
       // Joining large accounts is rate limited by Synapse. Import gradually without
       // blocking already connected chats or repeatedly presenting alerts.
-      for (id, room) in invited.sorted(by: { $0.key < $1.key }) {
+      // Give each selected bridge a turn: a large WhatsApp invite backlog must
+      // not starve newly linked Discord DMs indefinitely.
+      let candidates = invited.compactMap { id, room -> (String, MessagingService)? in
         // Accept only the selected bridges on this homeserver; joining never opts a chat into ingestion.
-        guard Self.events(room, key: "invite_state").contains(where: { event in
+        guard let service = trustedServices.sorted(by: { $0.rawValue < $1.rawValue }).first(where: { service in
+          Self.events(room, key: "invite_state").contains(where: { event in
           event["type"] as? String == "m.room.member"
             && event["state_key"] as? String == session.user_id
-            && trustedServices.contains(where: { service in event["sender"] as? String == service.bot })
+            && Self.isTrustedPortalInviter(event["sender"] as? String ?? "", service: service)
             && (event["content"] as? [String: Any])?["membership"] as? String == "invite"
-        }) else { continue }
+          })
+        }) else { return nil }
+        return (id, service)
+      }.sorted { ($0.1.rawValue, $0.0) < ($1.1.rawValue, $1.0) }
+      for (id, service) in candidates where !joinedServices.contains(service) {
         do {
           _ = try await Self.request(server: session.server, path: "join/\(Self.segment(id))",
             token: session.access_token, method: "POST", body: [:])
         } catch let error as APIError where error.status == 429 { break }
         joinedInvite = true
-        break
+        joinedServices.insert(service)
       }
       if joinedInvite { return try await discover() }
     }
@@ -178,6 +186,18 @@ public final class MatrixClient {
       r.encrypted = events.contains { $0["type"] as? String == "m.room.encryption" }
       return r
     }.sorted { $0.name < $1.name }
+  }
+
+  static func isTrustedPortalInviter(_ sender: String, service: MessagingService) -> Bool {
+    if sender == service.bot { return true }
+    // Some bridges invite from a ghost user in their exclusive local appservice
+    // namespace. Synapse reserves these names for the registered bridge.
+    let namespace = service == .messenger ? "facebook" : service.rawValue
+    let prefix = "@\(namespace)_"
+    guard sender.hasPrefix(prefix), sender.hasSuffix(":relay.local") else { return false }
+    let id = sender.dropFirst(prefix.count).dropLast(":relay.local".count)
+    if service == .discord { return !id.isEmpty && id.allSatisfy { $0.isASCII && $0.isNumber } }
+    return !id.isEmpty && id.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }
   }
   public func sync(rooms: [ChatRoom], since: String?) async throws -> (
     messages: [ChatMessage], next: String, raw: [[String: Any]]
