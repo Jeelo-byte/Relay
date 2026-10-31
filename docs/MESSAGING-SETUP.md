@@ -129,6 +129,10 @@ RELAY_VERIFY_BRIDGES_SESSION="$PWD/infra/matrix/onboarding/session.json" \
 These verify real local bridge-bot login responses, exclusion of setup rooms,
 Matrix text submission and sync, and idempotent retries. They send no text to a
 remote contact and do not prove delivery through an unlinked external account.
+To exercise Relay's persisted outbox path against one private disposable room,
+run `swift test --filter BridgeLiveTests/testRelayStoreOutgoingPathInDisposableRoom`
+with the same session variable. The test leaves the room after verifying its
+event and stable retry; it does not invite a bridge or remote contact.
 Other native tests cover setup persistence, consent, private-room checks,
 stale/wrong-bot responses, and pairing-code expiry.
 

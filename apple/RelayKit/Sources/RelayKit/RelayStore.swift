@@ -54,6 +54,7 @@ import SwiftUI
   var imessageClient = IMessageClient()
   var imessageSend: @Sendable (String, String) async throws -> Void = { try await IMessageAutomation.send(target: $0, text: $1) }
   #endif
+  var matrixSessionDataForSending: () throws -> Data? = { try KeychainStore.read("matrix-session") }
   private var matrixSyncing = false
   private var matrixDiscoveredAt: Date?
   private var matrixSelectionVersion = 0
@@ -1333,13 +1334,13 @@ extension RelayStore {
         event = try await sendIMessage(text, room: id, message: message, local: local, account: account, generation: generation)
       }
       else {
-        guard let data = try KeychainStore.read("matrix-session") else { throw VaultError.locked }
+        guard let data = try matrixSessionDataForSending() else { throw VaultError.locked }
         let matrix = try JSONDecoder().decode(MatrixSession.self, from: data)
         event = try await MatrixClient(session: matrix).send(room: room, text: text, transactionID: transactionID) { [weak self] in
           guard let self else { return false }
           return !self.locked && self.workspaceGeneration == generation && self.session?.account_id == account
             && self.rooms.contains(where: { $0.id == id && $0.opted_in })
-            && (try? KeychainStore.read("matrix-session")) == data
+            && (try? self.matrixSessionDataForSending()) == data
         }
       }
       guard !locked, workspaceGeneration == generation, session?.account_id == account else { return false }
