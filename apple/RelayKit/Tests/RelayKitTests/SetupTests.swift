@@ -18,6 +18,17 @@ final class SetupTests: XCTestCase {
     XCTAssertNil(PairingUpdate.parse([code], bot: MessagingService.whatsapp.bot, after: 900, now: 22_000).imageURL)
     XCTAssertEqual(PairingUpdate.parse([event("Successfully logged in")], bot: MessagingService.whatsapp.bot, after: 900, now: 2_000).state, .linked)
   }
+  func testWhatsAppAccountCheckAcceptsOnlyBridgeLoginList() {
+    let listing = event("* `my login` (WhatsApp) - `connected`")
+    XCTAssertEqual(PairingUpdate.parse([listing], bot: MessagingService.whatsapp.bot,
+      after: 900, now: 2_000, checkingLogins: true).state, .linked)
+    XCTAssertEqual(PairingUpdate.parse([listing], bot: MessagingService.whatsapp.bot,
+      after: 900, now: 2_000).state, .waiting)
+    XCTAssertEqual(PairingUpdate.parse([event("You're not logged in")], bot: MessagingService.whatsapp.bot,
+      after: 900, now: 2_000, checkingLogins: true).state, .failed)
+    XCTAssertEqual(PairingUpdate.parse([event("* `fake login`", sender: "@stranger:relay.local")],
+      bot: MessagingService.whatsapp.bot, after: 900, now: 2_000, checkingLogins: true).state, .waiting)
+  }
   @MainActor func testSetupResumesAndSkipDoesNotAddData() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }

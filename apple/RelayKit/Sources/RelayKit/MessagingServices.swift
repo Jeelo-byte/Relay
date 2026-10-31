@@ -62,6 +62,9 @@ public enum MessagingService: String, Codable, CaseIterable, Identifiable, Senda
     default: "login qr"
     }
   }
+  public var connectionCheckCommand: String {
+    self == .discord ? "ping" : "list-logins"
+  }
   public var pairingInstructions: String {
     switch self {
     case .discord: "Open Discord on your phone, scan the code, and approve the login. If Discord requests a CAPTCHA, use the bridge documentation for another login method."
