@@ -62,4 +62,44 @@ final class BridgeLiveTests: XCTestCase {
       _ = try await MatrixClient.request(server: session.server, path: "rooms/\(MatrixClient.segment(id))/leave", token: session.access_token, method: "POST", body: [:])
     }
   }
+
+  @MainActor func testRelayStoreOutgoingPathInDisposableRoom() async throws {
+    let session = try session()
+    let created = try await MatrixClient.request(server: session.server, path: "createRoom",
+      token: session.access_token, method: "POST",
+      body: ["preset": "private_chat", "name": "Relay disposable outbox test"])
+    let id = try XCTUnwrap(created["room_id"] as? String)
+    let room = ChatRoom(id: id, name: "Disposable local room", network: .gmessages, optedIn: true)
+    do {
+      let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+      defer { try? FileManager.default.removeItem(at: directory) }
+      let local = try LocalStore(directory: directory, key: Data(repeating: 7, count: 32), namespace: UUID())
+      let store = RelayStore(localStore: local, restoreSession: false)
+      store.rooms = [room]
+      let data = try JSONEncoder().encode(session)
+      store.matrixSessionDataForSending = { data }
+      let transaction = UUID()
+      let text = "Disposable Relay outbox check"
+      let first = await store.sendMessage(text, room: id, transactionID: transaction)
+      XCTAssertTrue(first, store.error ?? "")
+      let repeated = await store.sendMessage(text, room: id, transactionID: transaction)
+      XCTAssertTrue(repeated, store.error ?? "")
+      let eventID = try XCTUnwrap(store.outgoing.first?.event_id)
+      XCTAssertEqual(store.outgoing.first?.state, "sent")
+      XCTAssertEqual(store.messages.filter { $0.event_id == eventID }.count, 1)
+      let event = try await MatrixClient.request(server: session.server,
+        path: "rooms/\(MatrixClient.segment(id))/event/\(MatrixClient.segment(eventID))",
+        token: session.access_token)
+      XCTAssertEqual((event["content"] as? [String: Any])?["body"] as? String, text)
+      XCTAssertEqual(event["sender"] as? String, session.user_id)
+    } catch {
+      _ = try? await MatrixClient.request(server: session.server,
+        path: "rooms/\(MatrixClient.segment(id))/leave", token: session.access_token,
+        method: "POST", body: [:])
+      throw error
+    }
+    _ = try await MatrixClient.request(server: session.server,
+      path: "rooms/\(MatrixClient.segment(id))/leave", token: session.access_token,
+      method: "POST", body: [:])
+  }
 }
