@@ -20,7 +20,8 @@ public struct PairingUpdate: Equatable {
   public var message: String
   public var eventID: String?
   // Only bridge-authored responses after the current request may advance setup.
-  public static func parse(_ events: [[String: Any]], bot: String, after: Int64, now: Int64) -> Self {
+  public static func parse(_ events: [[String: Any]], bot: String, after: Int64, now: Int64,
+    checkingLogins: Bool = false) -> Self {
     for event in events.sorted(by: { ($0["origin_server_ts"] as? Int64 ?? 0) > ($1["origin_server_ts"] as? Int64 ?? 0) }) {
       guard event["sender"] as? String == bot,
         let ts = event["origin_server_ts"] as? Int64, ts >= after,
@@ -28,6 +29,9 @@ public struct PairingUpdate: Equatable {
       let content = original["m.new_content"] as? [String: Any] ?? original
       let body = (content["body"] as? String ?? "").lowercased()
       let id = event["event_id"] as? String
+      if checkingLogins && body.hasPrefix("* `") {
+        return Self(state: .linked, message: "WhatsApp linked. Choose which chats to include.", eventID: id)
+      }
       if body.contains("successfully logged in") || body.contains("connected to whatsapp") || body.contains("already logged in") {
         return Self(state: .linked, message: "WhatsApp linked. Choose which chats to include.", eventID: id)
       }
@@ -86,7 +90,7 @@ extension MatrixClient {
     rooms.max { ($0.lastBot, $0.created, $0.id) < ($1.lastBot, $1.created, $1.id) }?.id
   }
   @discardableResult public func requestWhatsAppPairing(room: String, command: String = "login qr") async throws -> Int64 {
-    guard ["login qr", "ping"].contains(command) else { throw VaultError.invalidEnvelope }
+    guard ["login qr", "list-logins"].contains(command) else { throw VaultError.invalidEnvelope }
     return try await sendSetupMessage(room: room, input: command)
   }
   /// Account responses are read only from the chosen service bot in its private room.
@@ -133,8 +137,10 @@ extension MatrixClient {
     let ids = Set(joined.compactMap { $0["state_key"] as? String })
     return ids == expected
   }
-  public func whatsappPairing(room: String, after: Int64, now: Int64 = Clock.ms) async throws -> PairingUpdate {
+  public func whatsappPairing(room: String, after: Int64, now: Int64 = Clock.ms,
+    checkingLogins: Bool = false) async throws -> PairingUpdate {
     let result = try await Self.request(server: session.server, path: "rooms/\(Self.segment(room))/messages?dir=b&limit=30", token: session.access_token)
-    return PairingUpdate.parse(result["chunk"] as? [[String: Any]] ?? [], bot: MessagingService.whatsapp.bot, after: after, now: now)
+    return PairingUpdate.parse(result["chunk"] as? [[String: Any]] ?? [], bot: MessagingService.whatsapp.bot,
+      after: after, now: now, checkingLogins: checkingLogins)
   }
 }

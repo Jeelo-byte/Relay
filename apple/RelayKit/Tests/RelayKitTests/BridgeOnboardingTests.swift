@@ -13,6 +13,10 @@ final class BridgeOnboardingTests: XCTestCase {
       XCTAssertFalse(service.bot.isEmpty)
     }
     XCTAssertEqual(MessagingService.messenger.bot, "@facebookbot:relay.local")
+    for service in MessagingService.onboarding where service != .imessage {
+      XCTAssertEqual(service.connectionCheckCommand,
+        service == .discord ? "ping" : "list-logins")
+    }
   }
   func testManagementRoomPrefersRecentBotActivityOverCreationOrder() {
     let rooms: [(id: String, lastBot: Int64, created: Int64)] = [

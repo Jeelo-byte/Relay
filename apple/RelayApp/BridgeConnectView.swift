@@ -143,7 +143,7 @@ struct BridgeConnectView: View {
   @ViewBuilder private var linkActions: some View {
     Button(service == .slack ? "Open Slack Setup" : "Start Account Linking") { Task { await start() } }
       .buttonStyle(.borderedProminent).disabled(busy)
-    Button("Check Connection") { Task { await start(command: "ping") } }.disabled(busy)
+    Button("Check Account") { Task { await start(command: service.connectionCheckCommand) } }.disabled(busy)
     Button("Server Settings") { serverSettings = true }
   }
   private func stepTitle(_ number: String, _ title: String, symbol: String) -> some View {

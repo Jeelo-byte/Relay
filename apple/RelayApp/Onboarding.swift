@@ -305,6 +305,7 @@ struct GuidedWhatsAppSetupView: View {
   @State private var requestedAt: Int64?
   @State private var serverClockOffset: Int64 = 0
   @State private var pairing: PairingUpdate?
+  @State private var checkingLogins = false
   @State private var imageData: Data?
   @State private var imageEvent: String?
   @State private var deliveryAfter = Int64(Date().timeIntervalSince1970 * 1000)
@@ -468,7 +469,7 @@ struct GuidedWhatsAppSetupView: View {
         Button("Choose Chats") { store.advanceSetup(.chats) }.buttonStyle(.borderedProminent)
       } else {
         Button("Show Pairing Code") { Task { await requestPairing() } }.buttonStyle(.borderedProminent).disabled(busy)
-        Button("Check Connection") { Task { await requestPairing(command: "ping") } }.disabled(busy)
+        Button("Check Account") { Task { await requestPairing(command: "list-logins") } }.disabled(busy)
       }
       Button("Back") { store.advanceSetup(.welcome) }.buttonStyle(.bordered)
     case .chats:
@@ -487,6 +488,7 @@ struct GuidedWhatsAppSetupView: View {
   }
   private func requestPairing(command: String = "login qr") async {
     issue = nil; busy = true; imageData = nil; pairing = nil; imageEvent = nil
+    checkingLogins = command == "list-logins"
     defer { busy = false }
     do {
       guard let session = try store.messageSession() else { server = true; return }
@@ -503,7 +505,8 @@ struct GuidedWhatsAppSetupView: View {
     do {
       guard let session = try store.messageSession() else { imageData = nil; return }
       let client = MatrixClient(session: session)
-      let result = try await client.whatsappPairing(room: management, after: requestedAt, now: Clock.ms + serverClockOffset)
+      let result = try await client.whatsappPairing(room: management, after: requestedAt,
+        now: Clock.ms + serverClockOffset, checkingLogins: checkingLogins)
       guard !Task.isCancelled, !store.locked, try store.messageSession()?.access_token == session.access_token else { return }
       pairing = result
       if result.state == .code, let url = result.imageURL, result.eventID != imageEvent {
