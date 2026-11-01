@@ -267,9 +267,10 @@ struct UnlockView: View {
       Image(systemName: "lock.shield").font(.system(size: 56)).foregroundStyle(RelayTheme.primary)
       Text("Welcome Back").font(.largeTitle.weight(.bold))
       Text("Unlock your agreements to continue.").foregroundStyle(RelayTheme.muted)
-      Button("Unlock with Biometrics") { Task { await store.unlockBiometrically() } }.buttonStyle(
-        .borderedProminent
-      ).controlSize(.large)
+      if store.biometricUnlockEnabled {
+        Button("Unlock with \(store.biometricUnlockName)") { Task { await store.unlockBiometrically() } }
+          .buttonStyle(.borderedProminent).controlSize(.large)
+      }
       Button("Use My Passphrase") { account = true }
       if store.session?.offlineUnlock != nil {
         if offline {
