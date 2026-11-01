@@ -17,6 +17,7 @@ import SwiftUI
   @Published public var isDemo = false
   @Published public var started = false
   @Published public var locked = false
+  @Published public private(set) var biometricUnlockEnabled = false
   @Published public var syncing = false
   @Published public var syncStatus = "On This Device"
   @Published public var error: String?
@@ -103,6 +104,7 @@ import SwiftUI
       includeAllWhatsApp = (try local!.meta("whatsapp_all_chats")) == "true"
       setupServices = Set((try local!.meta("setup_services") ?? "").split(separator: ",").compactMap { MessagingService(rawValue: String($0)) })
       setupStep = SetupStep(rawValue: Int(try local!.meta("setup_step") ?? "0") ?? 0) ?? .welcome
+      biometricUnlockEnabled = (try local!.meta("biometric_unlock")) == "true"
       if ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil { try removeSampleData() }
       if restoreSession, ProcessInfo.processInfo.environment["RELAY_TEST_NAMESPACE"] == nil,
         let data = try KeychainStore.read("account-session")
@@ -345,6 +347,9 @@ import SwiftUI
       cacheChats()
     }
     if let previous = session, previous.account_id != newSession.account_id {
+      biometricUnlockEnabled = false
+      try? local?.setMeta("biometric_unlock", value: "false")
+      KeychainStore.delete("ui-biometric-gate")
       automaticAIState = AutomaticAIState(); automaticRetryAfter = [:]
       for id in (try? local?.ids()) ?? [] { try local?.remove(id) }
       agreements = []
@@ -362,7 +367,6 @@ import SwiftUI
     deviceID = newSession.device_id
     UserDefaults.standard.set(deviceID.uuidString, forKey: "relay.device")
     try KeychainStore.write(JSONEncoder().encode(newSession), key: "account-session")
-    try? KeychainStore.enrollBiometricGate()
     locked = false
     beginManual()
     Task { await sync() }
@@ -380,6 +384,7 @@ import SwiftUI
     }
   }
   public func unlockBiometrically() async {
+    guard biometricUnlockEnabled else { return }
     guard KeychainStore.usesDataProtectionKeychain else {
       error = "This development build uses your macOS login Keychain. Use your Relay passphrase to unlock. Biometric unlock needs a provisioned app build."
       return
@@ -402,6 +407,37 @@ import SwiftUI
         Task { await sync() }
       }
     } catch { self.error = "Use your passphrase to unlock. Biometric access was cancelled or the enrolled biometrics changed." }
+  }
+  public var biometricUnlockName: String {
+    let context = LAContext()
+    _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+    switch context.biometryType {
+    case .faceID: return "Face ID"
+    case .touchID: return "Touch ID"
+    default: return "Biometrics"
+    }
+  }
+  public var biometricUnlockAvailable: Bool {
+    let context = LAContext()
+    return KeychainStore.usesDataProtectionKeychain
+      && context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+  }
+  public func setBiometricUnlock(_ enabled: Bool) throws {
+    guard !locked, session != nil else { throw VaultError.locked }
+    if enabled {
+      guard biometricUnlockAvailable else { throw VaultError.locked }
+      try KeychainStore.enrollBiometricGate()
+      do { try local?.setMeta("biometric_unlock", value: "true") }
+      catch {
+        KeychainStore.delete("ui-biometric-gate")
+        throw error
+      }
+      biometricUnlockEnabled = true
+    } else {
+      try local?.setMeta("biometric_unlock", value: "false")
+      biometricUnlockEnabled = false
+      KeychainStore.delete("ui-biometric-gate")
+    }
   }
   public func signOut() {
     contactNameGeneration += 1
@@ -427,6 +463,8 @@ import SwiftUI
     session = nil
     KeychainStore.delete("account-session")
     KeychainStore.delete("ui-biometric-gate")
+    try? local?.setMeta("biometric_unlock", value: "false")
+    biometricUnlockEnabled = false
     automaticAIState = AutomaticAIState(); automaticRetryAfter = [:]
     agreements = []
     recaps = []

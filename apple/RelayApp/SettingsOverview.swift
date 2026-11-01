@@ -149,8 +149,29 @@ struct DeviceSettingsView: View {
   @State private var passphrase = ""
   @State private var removing = false
   @State private var pairing = false
+  @State private var biometricIssue: String?
   var body: some View {
     SettingsPage(title: "Devices", subtitle: "The places you use Relay. Review and manage access to your encrypted account.", symbol: "laptopcomputer") {
+      if store.session != nil {
+        SettingsCard("App unlock") {
+          Toggle("Unlock with \(store.biometricUnlockName)", isOn: Binding(
+            get: { store.biometricUnlockEnabled },
+            set: { enabled in
+              do {
+                try store.setBiometricUnlock(enabled)
+                biometricIssue = nil
+              } catch {
+                biometricIssue = store.biometricUnlockAvailable
+                  ? error.localizedDescription
+                  : "Face ID or Touch ID is unavailable on this device or app build."
+              }
+            }
+          )).disabled(!store.biometricUnlockAvailable && !store.biometricUnlockEnabled)
+          Text("Use \(store.biometricUnlockName) to reopen Relay after locking it. Your account passphrase remains available.")
+            .font(.caption).foregroundStyle(RelayTheme.muted)
+          if let biometricIssue { Text(biometricIssue).foregroundStyle(RelayTheme.danger) }
+        }
+      }
       if store.session != nil && !store.locked {
         SettingsCard("Pair Another Device") {
           Text("Scan a private code to connect your iPhone, iPad, Mac, or browser without entering your passphrase.")
